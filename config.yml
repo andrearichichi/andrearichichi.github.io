@@ -1,5 +1,5 @@
 baseURL: "https://andrearichichi.github.io/" 
-title: Moritz-Maria von Igelfeld
+title: Andrea Richichi
 theme: PaperMod
 
 enableInlineShortcodes: true
@@ -29,12 +29,12 @@ menu:
           weight: 6
 
 params:
-    description: "This website hosts Moritz-Maria von Igelfeld's research papers, books, course materials, data, curriculum vitae, and contact information."
-    author: Moritz-Maria von Igelfeld
+    description: "This website hosts Andrea Richichi's portfolio: projects, papers, course materials, datasets, curriculum vitae, and contact information."
+    author: Andrea Richichi
     # googleAnalyticsID: "G-XXXXX"
     DateFormat: "January 2006"
     defaultTheme: light
-    hideFooter: false
+    hideFooter: true
     disableThemeToggle: true
     ShowShareButtons: false
     ShowReadingTime: false
@@ -54,8 +54,8 @@ params:
     math: true
     profileMode:
           enabled: true
-          title: Professor Dr von Igelfeld
-          subtitle: "I am a Professor in the Institute of Romance Philology at the University of Regensburg, Germany. My research focuses on Portuguese irregular verbs. I was a doctoral student of Professor Dr Dieter Vogelsang in Munich, and later a second assistant of Professor Walter Schoeffler-Henschell at the University of Wiesbaden."
+          title: Andrea Richichi
+          subtitle: "MSc student in Artificial Intelligence at the University of Trento; Erasmus exchange at NTNU (Aug–Dec 2025). Interests: language modeling, vision–language, optimization."
           imageUrl: "picture.jpeg"
           imageWidth: 160
           imageHeight: 160
