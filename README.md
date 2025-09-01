@@ -1,2 +1,2 @@
 # andrearichichi.github.io
-personal portfolio
+personal portfolios
