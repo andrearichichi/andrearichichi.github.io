@@ -1,0 +1,151 @@
+
+/******************************************************************************
+ * Font imports
+ ******************************************************************************/
+ @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English&display=swap');
+ @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Playfair+Display:ital,wght@0,400;1,700&display=swap');
+ @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;700&family=IM+Fell+English+SC&display=swap');
+ @import url('https://fonts.googleapis.com/css2?family=Spectral:wght@300&display=swap');
+
+ body {
+  font-family: "Spectral";
+ }
+
+ h1, h2, h3 {
+	font-family: "IM Fell English SC" !important;
+ }
+
+ p {
+  text-align: justify;
+  text-justify: inter-word;
+ }
+
+ .navbar-brand {
+  font-family: "IM Fell English SC" !important;
+ }
+
+ 
+/******************************************************************************
+ * Engravings
+ ******************************************************************************/
+
+ .engravings-bg-0 {
+    background-image: url("/assets/svg/engravings/0.svg");
+ }
+
+ .engravings-bg-1 {
+  background-image: url("/assets/svg/engravings/1.svg");
+}
+
+.engravings-bg-2 {
+  background-image: url("/assets/svg/engravings/2.svg");
+}
+
+.engravings-bg-3 {
+  background-image: url("/assets/svg/engravings/3.svg");
+}
+
+.engravings-bg-4 {
+  background-image: url("/assets/svg/engravings/4.svg");
+}
+
+ .engravings-bg-5 {
+  background-image: url("/assets/svg/engravings/5.svg");
+}
+
+#wrapper{
+  position: relative;
+
+}
+
+.content{
+  position: relative;
+  z-index: 100;
+}
+
+.background{
+  background-size: 70vw 150vh;
+  margin-top: -10%;
+  margin-left: -15%;
+  width: 100vw;
+  opacity: 0.1;
+  min-height: 170vh;
+  background-repeat: no-repeat;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -100;
+}
+
+@media only screen and (max-width: 870px) {
+	#contained-engraving {
+		top: 10%;
+		left: -40%;
+		width: 140%;
+		padding-left: -20%;
+		background-size: 150vw;
+	}
+
+  .background{
+    top: -5%;
+		left: -40%;
+		width: 140%;
+		padding-left: -20%;
+		background-size: 150vw;
+  }
+}
+
+/******************************************************************************
+ * Content
+ ******************************************************************************/
+
+.img-blog-width-1 {
+  width: 300px;
+}
+
+body {
+  padding-bottom: 70px;
+  color: var(--global-text-color);
+  background-color: var(--global-bg-color);
+
+  h1, h2, h3, h4, h5, h6 {
+    scroll-margin-top: 66px;
+  }
+}
+
+body.fixed-top-nav {
+  // Add some padding for the nav-bar.
+  padding-top: 56px;
+}
+
+body.sticky-bottom-footer {
+  // Remove padding below footer.
+  padding-bottom: 0;
+}
+
+.container {
+  max-width: $max-content-width;
+}
+
+// Profile
+.profile {
+  img {
+    width: 100%;
+  }
+}
+
+// TODO: redefine content layout.
+
+
+/******************************************************************************
+ * Publications
+ ******************************************************************************/
+
+// TODO: redefine publications layout.
+
+
+/*****************************************************************************
+* Projects
+*****************************************************************************/
+
+// TODO: redefine projects layout.
