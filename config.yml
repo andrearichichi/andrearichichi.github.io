@@ -12,28 +12,20 @@ taxonomies:
 
 menu:
     main:
-        - name: Books
-          url: books/
-          weight: 5 
-        - name: Papers
-          url: papers/
+        - name: About
+          url: about/
           weight: 2
-        - name: Courses
-          url: courses/
+        - name: Journeys
+          url: journeys/
           weight: 3
-        - name: Data
-          url: data/
-          weight: 4 
-        - name: Blog
-          url: https://en.wikipedia.org/wiki/Moritz-Maria_von_Igelfeld_(character)
-          weight: 6
 
 params:
     description: "This website hosts Andrea Richichi's portfolio: projects, papers, course materials, datasets, curriculum vitae, and contact information."
     author: Andrea Richichi
     # googleAnalyticsID: "G-XXXXX"
     DateFormat: "January 2006"
-    defaultTheme: light
+    defaultTheme: auto
+    hideMeta: true
     hideFooter: true
     disableThemeToggle: true
     ShowShareButtons: false
@@ -44,7 +36,7 @@ params:
     ShowBreadCrumbs: false
     ShowCodeCopyButtons: true
     ShowAllPagesInArchive: false
-    MainSections: ["books","courses","papers","data"]
+    MainSections: ["about","journeys"]
     ShowToc: false
     disableScrollToTop: true
     TocOpen: true
@@ -60,44 +52,22 @@ params:
           imageWidth: 160
           imageHeight: 160
           buttons:
-            - name: Papers
-              url: papers/
-            - name: Data
-              url: data/
-            - name: Books
-              url: books/
-            - name: Courses
-              url: courses/
-            - name: Tags
-              url: tags/
-            - name: Archive
-              url: archive/
-            - name: Blog
-              url: https://en.wikipedia.org/wiki/Moritz-Maria_von_Igelfeld_(character)
-
+            - name: About
+              url: about
+            - name: Journeys
+              url: journeys/
+          
     socialIcons:
         - name: CV
           url: cv.pdf
         - name: Email
-          url: mailto:igelfeld@regensburg.edu
-        - name: Zoom
-          url: https://www.zoom.us/my/igelfeld
-        - name: Location
-          url: location/
-        - name: Office Hours
-          url: officehours/
-        - name: Google Scholar
-          url: https://scholar.google.com/citations?user=cL23w-4AAAAJ
+          url: richichiandrea@gmail.com          
+        - name: Linkedin
+          url: https://www.linkedin.com/in/andrea-richichi/
         - name: GitHub
-          url: https://github.com/pmichaillat
-        - name: Substack
-          url: https://pmichaillat.substack.com
-        - name: YouTube
-          url: https://www.youtube.com/@pmichaillat
-        - name: Twitter
-          url: https://x.com/pmichaillat
-        - name: Bluesky
-          url: https://bsky.app/profile/pmichaillat.bsky.social
+          url: https://github.com/andrearichichi
+        - name: Strava
+          url: https://www.strava.com/athletes/146980586
 
     assets:
         disableScrollBarStyle: true
@@ -105,7 +75,7 @@ params:
         hiddenInList: false
         hiddenInSingle: true
     label:
-      text: "Moritz-Maria von Igelfeld"
+      text: "Andrea Richichi"
       icon: favicon.ico
       iconHeight: 18
 
