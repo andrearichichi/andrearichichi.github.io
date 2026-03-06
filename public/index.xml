@@ -2,38 +2,18 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Andrea Richichi</title>
-    <link>http://localhost:1313/</link>
+    <link>https://andrearichichi.github.io/</link>
     <description>Recent content on Andrea Richichi</description>
-    <generator>Hugo -- 0.149.0</generator>
+    <generator>Hugo -- 0.157.0</generator>
     <language>en</language>
     <lastBuildDate>Wed, 08 May 2024 00:00:00 +0000</lastBuildDate>
-    <atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://andrearichichi.github.io/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Location</title>
-      <link>http://localhost:1313/location/</link>
+      <link>https://andrearichichi.github.io/location/</link>
       <pubDate>Wed, 08 May 2024 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/location/</guid>
+      <guid>https://andrearichichi.github.io/location/</guid>
       <description>Andrea Richichi&amp;#39;s address during Erasmus at NTNU, Trondheim.</description>
-    </item>
-    <item>
-      <title></title>
-      <link>http://localhost:1313/about/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/about/</guid>
-      <description>&lt;h1 id=&#34;about&#34;&gt;About&lt;/h1&gt;
-&lt;p&gt;Hi, I’m Andrea 👋&lt;/p&gt;
-&lt;p&gt;I’m a MSc student in Artificial Intelligence at the University of Trento, and right now I’m spending a semester abroad at NTNU in Norway (Aug–Dec 2025).&lt;br&gt;
-My path started with a B.Sc. in Computer Science, where I got solid skills in programming, data analysis, and software engineering. Now I’m diving deeper into machine learning and AI systems, trying to turn theory into something useful.&lt;/p&gt;
-&lt;p&gt;I’m especially interested in language modeling, vision–language models, and optimization — basically how we can make AI smarter, more efficient, and actually understandable. What excites me is when research meets real-world problems, and you can see the impact of your work outside of papers.&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title></title>
-      <link>http://localhost:1313/journeys/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>http://localhost:1313/journeys/</guid>
-      <description>&lt;div style=&#34;display: flex; justify-content: center; align-items: center; height: 70vh; text-align: center; font-size: 2rem;&#34;&gt;
-  🚧 &lt;strong&gt;WORK IN PROGRESS&lt;/strong&gt; 🚧
-&lt;/div&gt;</description>
     </item>
   </channel>
 </rss>

@@ -1,4 +1,4 @@
-baseURL: "https://andrearichichi.github.io/" 
+baseURL: "https://andrearichichi.github.io/"
 title: Andrea Richichi
 theme: PaperMod
 
@@ -8,85 +8,75 @@ pagination:
   pagerSize: 20
 
 taxonomies:
-    tag: tags
+  tag: tags
 
 menu:
-    main:
-        - name: About
-          url: about/
-          weight: 2
-        - name: Journeys
-          url: journeys/
-          weight: 3
+  main: []
 
 params:
-    description: "This website hosts Andrea Richichi's portfolio: projects, papers, course materials, datasets, curriculum vitae, and contact information."
-    author: Andrea Richichi
-    # googleAnalyticsID: "G-XXXXX"
-    DateFormat: "January 2006"
-    defaultTheme: auto
-    hideMeta: true
-    hideFooter: true
-    disableThemeToggle: true
-    ShowShareButtons: false
-    ShowReadingTime: false
-    disableSpecial1stPost: true
-    disableAnchoredHeadings: true
-    ShowPostNavLinks: false
-    ShowBreadCrumbs: false
-    ShowCodeCopyButtons: true
-    ShowAllPagesInArchive: false
-    MainSections: ["about","journeys"]
-    ShowToc: false
-    disableScrollToTop: true
-    TocOpen: true
-    ShowWordCount: false
-    UseHugoToc: true
-    comments: false
-    math: true
-    profileMode:
-          enabled: true
-          title: Andrea Richichi
-          subtitle: "MSc student in Artificial Intelligence at the University of Trento; Erasmus exchange at NTNU (Aug–Dec 2025). Interests: language modeling, vision–language, optimization."
-          imageUrl: "picture.jpeg"
-          imageWidth: 160
-          imageHeight: 160
-          buttons:
-            - name: About
-              url: about
-            - name: Journeys
-              url: journeys/
-          
-    socialIcons:
-        - name: CV
-          url: cv.pdf
-        - name: Email
-          url: richichiandrea@gmail.com          
-        - name: Linkedin
-          url: https://www.linkedin.com/in/andrea-richichi/
-        - name: GitHub
-          url: https://github.com/andrearichichi
-        - name: Strava
-          url: https://www.strava.com/athletes/146980586
+  description: "This website hosts Andrea Richichi's portfolio: projects, papers, course materials, datasets, curriculum vitae, and contact information."
+  author: Andrea Richichi
+  # googleAnalyticsID: "G-XXXXX"
+  DateFormat: "January 2006"
+  defaultTheme: auto
+  hideMeta: true
+  hideFooter: true
+  disableThemeToggle: true
+  ShowShareButtons: false
+  ShowReadingTime: false
+  disableSpecial1stPost: true
+  disableAnchoredHeadings: true
+  ShowPostNavLinks: false
+  ShowBreadCrumbs: false
+  ShowCodeCopyButtons: true
+  ShowAllPagesInArchive: false
+  MainSections: []
+  ShowToc: false
+  disableScrollToTop: true
+  TocOpen: true
+  ShowWordCount: false
+  UseHugoToc: true
+  comments: false
+  math: true
+  profileMode:
+    enabled: true
+    title: Andrea Richichi
+    subtitle: "MSc student in Artificial Intelligence at the University of Trento 🇮🇹; research intern at IDSIA (USI-SUPSI), Lugano 🇨🇭. Interests: machine learning, computer vision, and robotics simulation."
+    imageUrl: "picture.jpeg"
+    imageWidth: 160
+    imageHeight: 160
+    buttons: []
 
-    assets:
-        disableScrollBarStyle: true
-    cover:
-        hiddenInList: false
-        hiddenInSingle: true
-    label:
-      text: "Andrea Richichi"
-      icon: favicon.ico
-      iconHeight: 18
+  socialIcons:
+    - name: CV
+      url: cv.pdf
+    - name: Email
+      url: richichiandrea@gmail.com
+    - name: Linkedin
+      url: https://www.linkedin.com/in/andrea-richichi/
+    - name: GitHub
+      url: https://github.com/andrearichichi
+    - name: Strava
+      url: https://www.strava.com/athletes/146980586
+
+  assets:
+    disableScrollBarStyle: true
+  cover:
+    hiddenInList: false
+    hiddenInSingle: true
+  label:
+    text: "Andrea Richichi"
+    icon: favicon.ico
+    iconHeight: 18
 
 markup:
-    goldmark:
-        renderer:
-            unsafe: true
-    highlight:
-        guessSyntax: true
-        style: autumn 
-    tableOfContents:
-        endLevel: 2
-        ordered: false
-        startLevel: 2
+  goldmark:
+    renderer:
+      unsafe: true
+  highlight:
+    guessSyntax: true
+    style: autumn
+  tableOfContents:
+    endLevel: 2
+    ordered: false
+    startLevel: 2
