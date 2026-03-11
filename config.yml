@@ -56,8 +56,6 @@ params:
       url: https://www.linkedin.com/in/andrea-richichi/
     - name: GitHub
       url: https://github.com/andrearichichi
-    - name: Strava
-      url: https://www.strava.com/athletes/146980586
 
   assets:
     disableScrollBarStyle: true
