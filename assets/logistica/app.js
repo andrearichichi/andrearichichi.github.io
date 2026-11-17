@@ -252,6 +252,14 @@
     setTimeout(function () { var i = $('input', root); if (i) i.focus(); }, 30);
   }
 
+  // GG-001…007 → ordine 1 · GG-008…020 e GG-034 → ordine 2 · GG-021…033 → ordine 3
+  function ordineDi(id) {
+    var n = parseInt(String(id).replace(/\D/g, ''), 10);
+    if (n <= 7) return 1;
+    if (n <= 20 || n === 34) return 2;
+    return 3;
+  }
+
   function etichettaStato(p) {
     return p.stato === 'tenuta' ? 'Tenuta · ' + nomeDi(p.tenuta_da).split(' ')[0] : (LABEL[p.stato] || p.stato);
   }
@@ -610,7 +618,7 @@
     h += '<section id="list" class="lg-cards">';
     paia.forEach(function (p) {
       var c = calc(p, paia, imp);
-      h += '<a class="lg-card s-' + esc(p.stato) + '" href="#/' + esc(p.id) + '" data-id="' + esc(p.id) + '" data-sesso="' + esc(p.sesso) + '" data-stato="' + esc(p.stato) + '" data-taglia="' + esc(p.taglia) + '"' +
+      h += '<a class="lg-card s-' + esc(p.stato) + '" href="#/' + esc(p.id) + '" data-ord="' + ordineDi(p.id) + '" data-id="' + esc(p.id) + '" data-sesso="' + esc(p.sesso) + '" data-stato="' + esc(p.stato) + '" data-taglia="' + esc(p.taglia) + '"' +
         ' data-listino="' + num(p.listino) + '" data-vendita="' + c.vendita + '" data-margine="' + (c.venduta ? c.margine : -99999) + '" data-nome="' + esc(p.nome) + '"' +
         ' data-search="' + esc([p.id, p.codice, p.nome, p.sesso, p.acquirente, p.canale, p.tracking, p.note].join(' ').toLowerCase()) + '">' +
         '<div class="lg-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" loading="lazy" width="1200" height="900"><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(etichettaStato(p)) + '</span></div>' +
@@ -636,6 +644,12 @@
     var q = $('#q'), fs = $('#f-sesso'), ft = $('#f-taglia'), so = $('#f-sort'), list = $('#list'), count = $('#count'), empty = $('#empty'), reset = $('#reset');
     fs.value = filters.s || ''; ft.value = filters.t || ''; so.value = filters.so || 'id';
     var cards = $$('.lg-card', list);
+    var heads = [1, 2, 3].map(function (n) {
+      var tot = cards.filter(function (c) { return c.dataset.ord === String(n); }).length;
+      var el = document.createElement('div'); el.className = 'lg-ord-h'; el.dataset.ordH = n;
+      el.innerHTML = '<b>Ordine ' + n + '</b><span></span>'; el.dataset.tot = tot;
+      return el;
+    });
     function cmp(a, b) {
       var A = a.dataset, B = b.dataset;
       switch (so.value) {
@@ -650,10 +664,18 @@
     }
     function apply() {
       var term = q.value.trim().toLowerCase(), n = 0;
-      cards.sort(cmp).forEach(function (c) {
-        var d = c.dataset;
-        var ok = (!term || d.search.indexOf(term) !== -1) && (!fs.value || d.sesso === fs.value) && (!ft.value || d.taglia === ft.value) && (!S.stato || d.stato === S.stato);
-        c.hidden = !ok; if (ok) n++; list.appendChild(c);
+      var sorted = cards.slice().sort(cmp);
+      heads.forEach(function (hd, i) {
+        var ord = String(i + 1), vis = 0;
+        list.appendChild(hd);
+        sorted.forEach(function (c) {
+          if (c.dataset.ord !== ord) return;
+          var d = c.dataset;
+          var ok = (!term || d.search.indexOf(term) !== -1) && (!fs.value || d.sesso === fs.value) && (!ft.value || d.taglia === ft.value) && (!S.stato || d.stato === S.stato);
+          c.hidden = !ok; if (ok) { n++; vis++; } list.appendChild(c);
+        });
+        hd.hidden = !vis;
+        $('span', hd).textContent = vis === +hd.dataset.tot ? vis + ' paia' : vis + ' di ' + hd.dataset.tot + ' paia';
       });
       var f = term || fs.value || ft.value || S.stato;
       count.textContent = f ? n + ' di ' + cards.length + ' paia' : cards.length + ' paia';

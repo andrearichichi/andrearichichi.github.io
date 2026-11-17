@@ -704,3 +704,11 @@ label.lg-btn { display: inline-flex; align-items: center; }
   .lg-keep { padding: 11px 12px; font-size: 12.5px; }
   .lg-keep .lg-btn { padding: 7px 10px; font-size: 13px; }
 }
+
+/* Elenco diviso per ordine */
+.lg-ord-h { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; padding: 14px 2px 2px; border-bottom: 1px solid var(--line); margin-bottom: 2px; }
+.lg-ord-h:first-child { padding-top: 0; }
+.lg-ord-h b { font-size: 17px; font-weight: 700; }
+.lg-ord-h span { font-size: 13px; color: var(--muted); }
+.lg-ord-h[hidden] { display: none; }
+@media (max-width: 640px) { .lg-ord-h { padding-top: 10px; } .lg-ord-h b { font-size: 14px; } .lg-ord-h span { font-size: 11px; } }
