@@ -405,6 +405,7 @@
     return m ? m[1].toUpperCase() : null;
   }
   function route() {
+    chiudiGuida();
     S.editing = false; S.pendingRefresh = false;
     rerender();
     window.scrollTo(0, 0);
@@ -418,7 +419,7 @@
 
   function topbar() {
     return '<div class="lg-topbar"><span id="lg-sync" class="lg-sync"></span>' +
-      '<span class="lg-topbar-r"><button type="button" class="lg-bell" id="lg-bell" title="Attività">🔔 Attività <span id="lg-bell-n" hidden></span></button>' +
+      '<span class="lg-topbar-r"><button type="button" class="lg-help" id="lg-help" title="Guida" aria-label="Guida">?</button><button type="button" class="lg-bell" id="lg-bell" title="Attività">🔔 Attività <span id="lg-bell-n" hidden></span></button>' +
       '<button type="button" class="lg-link" id="lg-chi" title="Cambia utente">' + esc(nomeDi(S.chi).split(' ')[0]) + '</button>' +
       '<button type="button" class="lg-link" id="lg-refresh">Aggiorna</button>' +
       '<button type="button" class="lg-link" id="lg-logout">Esci</button></span></div>';
@@ -427,8 +428,117 @@
     var r = $('#lg-refresh'); if (r) r.onclick = function () { refresh().then(function () { toast('Aggiornato'); }); };
     var l = $('#lg-logout'); if (l) l.onclick = logout;
     var b = $('#lg-bell'); if (b) b.onclick = apriAttivita;
+    var hq = $('#lg-help'); if (hq) hq.onclick = function () { avviaGuida(); };
+    invitoGuida();
     var c = $('#lg-chi'); if (c) c.onclick = function () { if (confirm('Cambiare utente su questo dispositivo?')) { store('lg-chi', null); location.reload(); } };
     updateBell();
+  }
+
+
+  /* =====================================================================
+     Guida interattiva (tasto ?): evidenzia gli elementi veri della pagina
+     ===================================================================== */
+  var GUIDA_LISTA = [
+    { t: 'Benvenuto 👋', d: 'In un minuto ti mostro come funziona. Usa Avanti, oppure le frecce della tastiera.' },
+    { s: '#lg-bell', t: 'Attività', d: 'Tutto quello che succede, con nome e ora. Il numero rosso sono le novità fatte dagli altri.' },
+    { s: '.lg-kpis', t: 'Numeri chiave', d: 'Speso, paia da vendere, incassato e guadagno. Si aggiornano da soli.' },
+    { s: '.lg-pipe', t: 'Filtra per stato', d: 'Tocca uno stato per vedere solo quelle paia. Tocca “Tutte” per tornare all’elenco completo.' },
+    { s: '#q', t: 'Cerca', d: 'Scrivi un ID (es. GG-012), un modello o una taglia.' },
+    { s: '.lg-card:not([hidden])', t: 'Apri una scarpa', d: 'Tocca la scheda per registrare vendita, spedizione e chiusura.' },
+    { s: '.lg-bil2', t: 'Bilancio', d: 'Prima Benedetto rientra del capitale (meno il 5% di Gianluigi), poi l’utile si divide a metà. Sotto trovi la simulazione.' },
+    { s: '#lg-chi', t: 'Il tuo nome', d: 'Ogni modifica è firmata con questo nome. Toccalo per cambiare utente.' },
+    { s: '#lg-logout', t: 'Esci', d: 'Su un computer condiviso premi Esci quando hai finito.' }
+  ];
+  var GUIDA_DETTAGLIO = [
+    { s: '.lg-steps', t: 'A che punto è', d: 'Disponibile → Venduto → Spedito → Concluso. Tocca un passo per spostarti, anche indietro.' },
+    { s: '.lg-next', t: 'Prossimo passo', d: 'Il riquadro colorato ti dice cosa fare adesso: compila solo i campi che vedi.' },
+    { s: '#f-vendita', t: 'Prezzo di vendita', d: 'L’unico campo obbligatorio quando vendi.' },
+    { s: '.lg-stepup', t: 'Screenshot della vendita', d: 'Carica la foto della chat o dell’accordo. Puoi anche trascinarla o incollarla.' },
+    { s: '.lg-next button[type=submit]', t: 'Salva e avanza', d: 'Salva i dati e porta la scarpa al passo successivo. Tutti lo vedono subito.' },
+    { s: '.lg-back-step', t: 'Hai sbagliato?', d: 'Torna al passo precedente. Le date dei passi annullati vengono tolte, il resto resta.' },
+    { s: '#lg-att', t: 'File', d: 'Tutti i file della scarpa: tocca per aprirli.' },
+    { s: '.lg-hist', t: 'Storico', d: 'Chi ha fatto cosa e quando. Nessuno può modificarlo o cancellarlo; puoi aggiungere una nota.' },
+    { s: '.lg-back', t: 'Torna all’elenco', d: 'Per tornare a tutte le paia. Con ‹ e › passi alla scarpa precedente o successiva.' }
+  ];
+
+  var guidaAttiva = null;
+  function avviaGuida() {
+    chiudiGuida();
+    var passi = (currentId() ? GUIDA_DETTAGLIO : GUIDA_LISTA).filter(function (g) {
+      if (!g.s) return true;
+      var el = $(g.s); return el && el.offsetParent !== null;
+    });
+    store('lg-guida-vista', '1');
+    var inv = $('#lg-invito'); if (inv) inv.remove();
+    var spot = document.createElement('div'); spot.className = 'lg-spot';
+    var tip = document.createElement('div'); tip.className = 'lg-tip'; tip.setAttribute('role', 'dialog');
+    var blocco = document.createElement('div'); blocco.className = 'lg-tour-block';
+    document.body.appendChild(blocco); document.body.appendChild(spot); document.body.appendChild(tip);
+    var i = 0;
+    var corrente = null, raf = 0;
+    function posiziona() {
+      raf = 0;
+      if (!guidaAttiva || !corrente) return;
+      var r = corrente.getBoundingClientRect(), pad = 8, vw = window.innerWidth, vh = window.innerHeight;
+      // il riquadro resta dentro lo schermo anche per elementi molto alti
+      var top = Math.max(6, r.top - pad), bottom = Math.min(vh - 6, r.bottom + pad);
+      var left = Math.max(6, r.left - pad), right = Math.min(vw - 6, r.right + pad);
+      spot.style.cssText = 'left:' + left + 'px;top:' + top + 'px;width:' + Math.max(0, right - left) + 'px;height:' + Math.max(0, bottom - top) + 'px';
+      var tw = Math.min(340, vw - 24), th = tip.offsetHeight || 170;
+      var tl = Math.min(Math.max(12, (left + right) / 2 - tw / 2), vw - tw - 12);
+      var tt;
+      if (bottom + 14 + th <= vh - 8) tt = bottom + 14;            // sotto
+      else if (top - 14 - th >= 8) tt = top - 14 - th;             // sopra
+      else tt = vh - th - 12;                                      // in basso, sopra l'elemento
+      tip.style.cssText = 'width:' + tw + 'px;left:' + tl + 'px;top:' + tt + 'px';
+    }
+    function pianifica() { if (!raf) raf = requestAnimationFrame(posiziona); }
+    function mostra() {
+      var g = passi[i];
+      corrente = g.s ? $(g.s) : null;
+      tip.innerHTML = '<div class="lg-tip-n">' + (i + 1) + ' di ' + passi.length + '</div><h4>' + esc(g.t) + '</h4><p>' + esc(g.d) + '</p>' +
+        '<div class="lg-tip-f"><button type="button" class="lg-link" data-g="x">Chiudi</button><span>' +
+        (i > 0 ? '<button type="button" class="lg-btn" data-g="p">Indietro</button>' : '') +
+        '<button type="button" class="lg-btn primary" data-g="n">' + (i === passi.length - 1 ? 'Fine' : 'Avanti') + '</button></span></div>';
+      if (!corrente) {
+        spot.style.cssText = 'left:50%;top:50%;width:0;height:0';
+        tip.classList.add('center'); tip.style.cssText = ''; return;
+      }
+      tip.classList.remove('center');
+      var r = corrente.getBoundingClientRect();
+      var alto = r.height > window.innerHeight * 0.6;
+      corrente.scrollIntoView({ block: alto ? 'start' : 'center', behavior: 'auto' });
+      if (alto) window.scrollBy(0, -80);
+      posiziona(); setTimeout(posiziona, 120);
+    }
+    function vai(d) { i += d; if (i < 0) i = 0; if (i >= passi.length) return chiudiGuida(); mostra(); }
+    tip.addEventListener('click', function (e) {
+      var a = e.target.getAttribute && e.target.getAttribute('data-g');
+      if (a === 'n') vai(1); else if (a === 'p') vai(-1); else if (a === 'x') chiudiGuida();
+    });
+    blocco.addEventListener('click', function () { chiudiGuida(); });
+    function tasti(e) {
+      if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); vai(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); vai(-1); }
+      else if (e.key === 'Escape') chiudiGuida();
+    }
+    document.addEventListener('keydown', tasti, true);
+    window.addEventListener('resize', pianifica);
+    window.addEventListener('scroll', pianifica, { passive: true });
+    guidaAttiva = { spot: spot, tip: tip, blocco: blocco, off: function () { document.removeEventListener('keydown', tasti, true); window.removeEventListener('resize', pianifica); window.removeEventListener('scroll', pianifica); } };
+    mostra();
+  }
+  function chiudiGuida() {
+    if (!guidaAttiva) return;
+    guidaAttiva.off(); guidaAttiva.spot.remove(); guidaAttiva.tip.remove(); guidaAttiva.blocco.remove();
+    guidaAttiva = null;
+  }
+  function invitoGuida() {
+    if (store('lg-guida-vista') || $('#lg-invito') || !$('#lg-help')) return;
+    var d = document.createElement('div'); d.id = 'lg-invito'; d.className = 'lg-invito';
+    d.innerHTML = '<b>Prima volta qui?</b> Tocca <span>?</span> per una guida di 1 minuto. <button type="button" class="lg-link">Non ora</button>';
+    var help = $('#lg-help'); help.parentNode.style.position = 'relative'; help.parentNode.appendChild(d);
+    $('button', d).onclick = function () { store('lg-guida-vista', '1'); d.remove(); };
   }
 
   /* =====================================================================
