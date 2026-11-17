@@ -14,6 +14,11 @@ menu:
   main: []
 
 params:
+  # Logistica: progetto Supabase. URL e chiave publishable sono pubblici per design:
+  # i dati sono protetti dalle policy RLS che verificano la password lato server.
+  logistica:
+    supabaseUrl: "https://eadbuzbffkmixcuywofu.supabase.co"
+    supabaseAnonKey: "sb_publishable_dLsNPST1NEi8abePTdGcVw_YXbdeC0J"
   description: "This website hosts Andrea Richichi's portfolio: projects, papers, course materials, datasets, curriculum vitae, and contact information."
   author: Andrea Richichi
   # googleAnalyticsID: "G-XXXXX"

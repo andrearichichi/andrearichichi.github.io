@@ -1,0 +1,17 @@
+{{- define "main" }}
+{{- /* La logistica è un'app client-side: i dati stanno su Supabase, protetti da password.
+       Nessun dato privato viene generato da Hugo né finisce nel repo. */}}
+{{- $cfg := site.Params.logistica | default dict }}
+<noscript><p>Per usare la logistica serve JavaScript.</p></noscript>
+<div class="lg" id="lg-app"
+     data-supabase-url="{{ $cfg.supabaseUrl | default "" }}"
+     data-supabase-key="{{ $cfg.supabaseAnonKey | default "" }}"
+     data-base="{{ "logistica/" | relURL }}">
+  <p class="lg-loading">Caricamento…</p>
+</div>
+{{- if $cfg.supabaseUrl }}
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
+{{- end }}
+{{- $app := resources.Get "logistica/app.js" | resources.Minify | resources.Fingerprint }}
+<script src="{{ $app.RelPermalink }}" integrity="{{ $app.Data.Integrity }}"></script>
+{{- end }}

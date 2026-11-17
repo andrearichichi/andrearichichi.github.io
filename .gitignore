@@ -1,0 +1,9 @@
+# Dati privati della logistica: mai nel repo pubblico
+privato/
+static/logistica/seed.json
+.DS_Store
+
+# Output di Hugo: GitHub Actions ricostruisce il sito a ogni push
+public/
+resources/_gen/
+.hugo_build.lock
