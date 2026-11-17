@@ -23,6 +23,8 @@
   ];
   var LABEL = {}; STATI.forEach(function (s) { LABEL[s.key] = s.label; });
   var ORDER = STATI.map(function (s) { return s.key; });
+  LABEL.tenuta = 'Tenuta';
+  var ORDER_ALL = ORDER.concat(['tenuta']);
 
   /* ---------------- utilità ---------------- */
   function esc(v) {
@@ -250,6 +252,20 @@
     setTimeout(function () { var i = $('input', root); if (i) i.focus(); }, 30);
   }
 
+  function etichettaStato(p) {
+    return p.stato === 'tenuta' ? 'Tenuta · ' + nomeDi(p.tenuta_da).split(' ')[0] : (LABEL[p.stato] || p.stato);
+  }
+  // costo reale dei paia tenuti da ciascun socio
+  function paiaTenute(paia, imp) {
+    var k = { andrea: 0, benedetto: 0, gianluigi: 0, n: { andrea: 0, benedetto: 0, gianluigi: 0 }, tot: 0 };
+    paia.forEach(function (p) {
+      if (p.stato !== 'tenuta' || !p.tenuta_da) return;
+      var c = calc(p, paia, imp).costo;
+      k[p.tenuta_da] = (k[p.tenuta_da] || 0) + c; k.n[p.tenuta_da] = (k.n[p.tenuta_da] || 0) + 1; k.tot++;
+    });
+    return k;
+  }
+
   function nomiSoci(imp) { return ((imp || {}).bilancio || {}).soci || {}; }
   function nomeDi(chi) { var so = nomiSoci(S.imp); return (chi && so[chi]) || (chi ? chi : 'Sconosciuto'); }
 
@@ -335,12 +351,14 @@
     data_spedizione: 'Data spedizione', data_conclusione: 'Data chiusura', note: 'Note', nome: 'Modello',
     codice: 'Codice', sesso: 'Uomo/Donna', taglia: 'Taglia', listino: 'Listino', pagato: 'Pagato',
     condizione: 'Condizione', posizione: 'Dove si trova', pagamento_ricevuto: 'Pagamento ricevuto',
-    data_pagamento: 'Data pagamento', commissioni: 'Commissioni', acquirente: 'Acquirente'
+    data_pagamento: 'Data pagamento', commissioni: 'Commissioni', acquirente: 'Acquirente',
+    tenuta_da: 'Tenuta da', data_tenuta: 'Data tenuta'
   };
   var SOLDI = ['vendita', 'listino', 'pagato', 'commissioni', 'costo_spedizione'];
   function valore(k, v) {
     if (v === null || v === undefined || v === '') return '—';
     if (k === 'stato') return LABEL[v] || v;
+    if (k === 'tenuta_da') return nomeDi(v);
     if (SOLDI.indexOf(k) !== -1) return eur(v);
     if (/^data_/.test(k)) return dataIt(v);
     if (v === true) return 'sì'; if (v === false) return 'no';
@@ -455,6 +473,7 @@
     { s: '#f-vendita', t: 'Prezzo di vendita', d: 'L’unico campo obbligatorio quando vendi.' },
     { s: '.lg-next .lg-stepup', t: 'Screenshot della vendita', d: 'Carica la foto della chat o dell’accordo. Puoi anche trascinarla o incollarla.' },
     { s: '.lg-next button[type=submit]', t: 'Salva e avanza', d: 'Salva i dati e porta la scarpa al passo successivo. Tutti lo vedono subito.' },
+    { s: '.lg-keep', t: 'La tiene uno di voi?', d: 'Tocca il nome di chi la tiene: la paga al costo reale, senza 5%, e il bilancio si aggiorna da solo.' },
     { s: '.lg-back-step', t: 'Hai sbagliato?', d: 'Torna al passo precedente. Le date dei passi annullati vengono tolte, il resto resta.' },
     { s: '.lg-done-i[data-passo=venduto] .lg-stepfiles', t: 'Screenshot della vendita', d: 'Qui restano gli screenshot caricati: tocca per aprirli, o aggiungine altri.' },
     { s: '.lg-hist', t: 'Storico', d: 'Chi ha fatto cosa e quando. Nessuno può modificarlo o cancellarlo; puoi aggiungere una nota.' },
@@ -552,10 +571,11 @@
       var c = calc(p, paia, imp);
       tot.costo += c.costo; tot.listino += num(p.listino);
       if (c.venduta) { tot.vendute++; tot.margine += c.margine; if (c.incassato) tot.incassato += c.netto; else tot.daInc += c.netto; }
-      else tot.magListino += num(p.listino);
+      else if (p.stato !== 'tenuta') tot.magListino += num(p.listino);
       count[p.stato] = (count[p.stato] || 0) + 1;
       taglie[p.taglia] = 1;
     });
+    var keep = paiaTenute(paia, imp);
     var recupero = tot.costo ? 100 * tot.incassato / tot.costo : 0;
     var acq = imp.acquisto || {};
 
@@ -564,7 +584,7 @@
 
     h += '<section class="lg-kpis">' +
       kpi('Speso', eur(tot.costo), paia.length + ' paia, spedizione inclusa') +
-      kpi('Da vendere', (paia.length - tot.vendute) + ' <em>paia</em>', 'Valore di listino ' + eur(tot.magListino)) +
+      kpi('Da vendere', (paia.length - tot.vendute - keep.tot) + ' <em>paia</em>', 'Valore di listino ' + eur(tot.magListino) + (keep.tot ? ' · ' + keep.tot + ' tenute dai soci' : '')) +
       kpi('Incassato', eur(tot.incassato), tot.daInc > 0 ? 'Ancora da incassare ' + eur(tot.daInc) : (tot.vendute === 1 ? '1 paio venduto' : tot.vendute + ' paia vendute')) +
       '<div class="lg-kpi"><span class="lg-kpi-l">Guadagno netto</span><b class="' + (tot.margine < 0 ? 'neg' : tot.margine > 0 ? 'pos' : '') + '">' + eur(tot.margine) + '</b>' +
       '<div class="lg-bar"><i style="width:' + Math.min(100, recupero) + '%"></i></div><small>Recuperato ' + pct(recupero) + " dell'investimento</small></div>" +
@@ -574,6 +594,7 @@
     STATI.forEach(function (s) {
       h += '<button type="button" class="lg-chip s-' + s.key + (S.stato === s.key ? ' on' : '') + '" data-stato="' + s.key + '" title="' + esc(s.desc) + '"><span class="lg-chip-n">' + (count[s.key] || 0) + '</span><span class="lg-chip-l"><i class="lg-dot"></i>' + s.label + '</span></button>';
     });
+    h += '<button type="button" class="lg-chip s-tenuta' + (S.stato === 'tenuta' ? ' on' : '') + '" data-stato="tenuta" title="Paia tenute dai soci"><span class="lg-chip-n">' + (count.tenuta || 0) + '</span><span class="lg-chip-l"><i class="lg-dot"></i>Tenute</span></button>';
     h += '</nav>';
 
     var tg = Object.keys(taglie).map(Number).sort(function (a, b) { return a - b; });
@@ -592,7 +613,7 @@
       h += '<a class="lg-card s-' + esc(p.stato) + '" href="#/' + esc(p.id) + '" data-id="' + esc(p.id) + '" data-sesso="' + esc(p.sesso) + '" data-stato="' + esc(p.stato) + '" data-taglia="' + esc(p.taglia) + '"' +
         ' data-listino="' + num(p.listino) + '" data-vendita="' + c.vendita + '" data-margine="' + (c.venduta ? c.margine : -99999) + '" data-nome="' + esc(p.nome) + '"' +
         ' data-search="' + esc([p.id, p.codice, p.nome, p.sesso, p.acquirente, p.canale, p.tracking, p.note].join(' ').toLowerCase()) + '">' +
-        '<div class="lg-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" loading="lazy" width="1200" height="900"><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(LABEL[p.stato] || p.stato) + '</span></div>' +
+        '<div class="lg-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" loading="lazy" width="1200" height="900"><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(etichettaStato(p)) + '</span></div>' +
         '<div class="lg-cb"><div class="lg-cb-top"><span class="lg-id">' + esc(p.id) + '</span><span class="lg-tg"><small>' + esc(p.sesso) + '</small> Tg <b>' + esc(p.taglia) + '</b></span></div>' +
         '<h3 class="lg-name">' + esc(p.nome) + '</h3><div class="lg-money">' +
         (c.venduta
@@ -606,7 +627,7 @@
     root.innerHTML = h;
     bindTopbar();
     bindList();
-    bindBilancio(paia.length, imp);
+    bindBilancio(paia.length - keep.tot, imp, keep);
   }
 
   function kpi(l, v, s) { return '<div class="lg-kpi"><span class="lg-kpi-l">' + l + '</span><b>' + v + '</b><small>' + s + '</small></div>'; }
@@ -623,7 +644,7 @@
         case 'listino-desc': return num(B.listino) - num(A.listino);
         case 'vendita-desc': return num(B.vendita) - num(A.vendita);
         case 'margine-desc': return num(B.margine) - num(A.margine);
-        case 'stato': return ORDER.indexOf(A.stato) - ORDER.indexOf(B.stato) || A.id.localeCompare(B.id);
+        case 'stato': return ORDER_ALL.indexOf(A.stato) - ORDER_ALL.indexOf(B.stato) || A.id.localeCompare(B.id);
         default: return A.id.localeCompare(B.id, undefined, { numeric: true });
       }
     }
@@ -672,65 +693,80 @@
   }
 
   /* ---------------- Bilancio ---------------- */
-  // Regola: fee% a Gianluigi su ogni incasso → Benny rientra del capitale → resto 50/50
-  function ripartisci(incassato, feeP, cap) {
-    var fee = incassato * feeP / 100, dopo = incassato - fee;
-    var rimb = Math.min(dopo, cap), utile = Math.max(0, dopo - cap), half = utile / 2;
+  // Regole: fee% a Gianluigi solo sulle vendite esterne; i paia tenuti dai soci valgono il loro costo reale
+  // (Andrea e Gianluigi lo versano, per Benedetto è capitale rientrato in scarpe); poi utile 50/50.
+  function ripartisci(incassato, feeP, cap, keep) {
+    keep = keep || { andrea: 0, benedetto: 0, gianluigi: 0 };
+    var f = feeP / 100, fee = incassato * f;
+    var versati = (keep.andrea || 0) + (keep.gianluigi || 0);
+    var capCash = Math.max(0, cap - (keep.benedetto || 0));
+    var dopo = incassato - fee + versati;
+    var rimb = Math.min(dopo, capCash), utile = Math.max(0, dopo - capCash), half = utile / 2;
+    var be = Math.max(0, capCash - versati) / (1 - f);
     return {
-      incassato: incassato, fee: fee, rimb: rimb, utile: utile, half: half,
-      andrea: half, benny: rimb + half, gianluigi: fee,
-      breakEven: cap / (1 - feeP / 100), mancano: Math.max(0, cap / (1 - feeP / 100) - incassato),
-      pctCap: cap ? Math.min(100, 100 * rimb / cap) : 0, raggiunto: dopo >= cap
+      incassato: incassato, fee: fee, rimb: rimb, utile: utile, half: half, keep: keep, versati: versati,
+      andrea: half - (keep.andrea || 0), benny: rimb + half, gianluigi: fee - (keep.gianluigi || 0),
+      bennyScarpe: keep.benedetto || 0,
+      breakEven: be, mancano: Math.max(0, be - incassato),
+      pctCap: cap ? Math.min(100, 100 * (rimb + (keep.benedetto || 0)) / cap) : 0, raggiunto: dopo >= capCash
     };
   }
 
   function bilancioVista(r, so, cap, feeP, prefisso) {
     var A = esc(so.andrea || 'Socio A'), B = esc(so.benedetto || 'Socio B'), G = esc(so.gianluigi || 'Commerciale');
-    var id = function (k) { return prefisso + k; };
+    var k = r.keep, n = k.n || {};
+    var paiaTxt = function (q) { return q === 1 ? '1 paio' : q + ' paia'; };
+    var noteKeep = [];
+    if (k.benedetto) noteKeep.push(B.split(' ')[0] + ' tiene ' + paiaTxt(n.benedetto) + ': ' + eur(k.benedetto) + ' di capitale rientrano in scarpe');
+    if (r.versati) noteKeep.push('per i paia tenuti ' + [k.andrea ? A.split(' ')[0] + ' versa ' + eur(k.andrea) : '', k.gianluigi ? G.split(' ')[0] + ' versa ' + eur(k.gianluigi) : ''].filter(Boolean).join(' e '));
+    var rientrato = r.rimb + r.bennyScarpe;
+    var netto = function (v) { return v < 0 ? '<span class="neg">' + eur(v) + '</span>' : eur(v); };
     return '' +
       // Fase 1
-      '<div class="lg-phase ' + (r.raggiunto ? 'ok' : 'on') + '" id="' + id('f1') + '">' +
-      '  <div class="lg-phase-h"><span class="lg-phase-n">1</span><div><b>' + B + ' rientra del capitale</b><small>Tutto l\'incassato (meno il ' + feeP + '% di ' + G + ') va a ' + B + ' fino a ' + eur(cap) + '</small></div>' +
-      '  <span class="lg-phase-v" data-v="rimb">' + eur(r.rimb) + ' <small>/ ' + eur(cap) + '</small></span></div>' +
-      '  <div class="lg-pbar"><i class="b" data-w="cap" style="width:' + r.pctCap + '%"></i></div>' +
-      '  <p class="lg-phase-s" data-v="f1s">' + (r.raggiunto ? '✓ Break-even raggiunto: capitale interamente restituito.' : 'Mancano <b>' + eur(r.mancano) + '</b> di incassi per arrivare al break-even' + (r.incassato > 0 ? ' (si raggiunge a ' + eur(r.breakEven) + ' incassati in totale).' : '.')) + '</p>' +
+      '<div class="lg-phase ' + (r.raggiunto ? 'ok' : 'on') + '">' +
+      '  <div class="lg-phase-h"><span class="lg-phase-n">1</span><div><b>' + B + ' rientra del capitale</b><small>Le vendite (meno il ' + feeP + '% di ' + G + ') e i paia tenuti dai soci rimborsano ' + B + ' fino a ' + eur(cap) + '</small></div>' +
+      '  <span class="lg-phase-v">' + eur(rientrato) + ' <small>/ ' + eur(cap) + '</small></span></div>' +
+      '  <div class="lg-pbar"><i class="b" style="width:' + r.pctCap + '%"></i></div>' +
+      '  <p class="lg-phase-s">' + (r.raggiunto ? '✓ Break-even raggiunto: capitale interamente restituito.' : 'Mancano <b>' + eur(r.mancano) + '</b> di vendite per arrivare al break-even.') + '</p>' +
+      (noteKeep.length ? '  <p class="lg-phase-s lg-keepnote">Paia tenuti: ' + noteKeep.join(' · ') + ' (al costo reale, senza ' + feeP + '%).</p>' : '') +
       '</div>' +
       // Fase 2
-      '<div class="lg-phase ' + (r.raggiunto ? 'on' : 'off') + '" id="' + id('f2') + '">' +
+      '<div class="lg-phase ' + (r.raggiunto ? 'on' : 'off') + '">' +
       '  <div class="lg-phase-h"><span class="lg-phase-n">2</span><div><b>Utile diviso a metà</b><small>Dopo il break-even ogni euro (meno il ' + feeP + '%) va metà ad Andrea e metà a ' + B + '</small></div>' +
-      '  <span class="lg-phase-v" data-v="utile">' + eur(r.utile) + '</span></div>' +
-      '  <div class="lg-split2"><div class="a"><span>' + A + '</span><b data-v="ha">' + eur(r.half) + '</b></div><div class="b"><span>' + B + '</span><b data-v="hb">' + eur(r.half) + '</b></div></div>' +
-      '  <p class="lg-phase-s" data-v="f2s">' + (r.raggiunto ? 'In corso.' : 'Si sblocca dopo il break-even.') + '</p>' +
+      '  <span class="lg-phase-v">' + eur(r.utile) + '</span></div>' +
+      '  <div class="lg-split2"><div class="a"><span>' + A + '</span><b>' + eur(r.half) + '</b></div><div class="b"><span>' + B + '</span><b>' + eur(r.half) + '</b></div></div>' +
+      '  <p class="lg-phase-s">' + (r.raggiunto ? 'In corso.' : 'Si sblocca dopo il break-even.') + '</p>' +
       '</div>' +
       // Totali
       '<div class="lg-tot3">' +
-      '  <div class="a"><span>' + A + '</span><b data-v="ta">' + eur(r.andrea) + '</b><small>50% dell\'utile</small></div>' +
-      '  <div class="b"><span>' + B + '</span><b data-v="tb">' + eur(r.benny) + '</b><small data-v="tbs">' + eur(r.rimb) + ' capitale + ' + eur(r.half) + ' utile</small></div>' +
-      '  <div class="g"><span>' + G + '</span><b data-v="tg">' + eur(r.gianluigi) + '</b><small>' + feeP + '% di ' + '<span data-v="tgi">' + eur(r.incassato) + '</span></small></div>' +
+      '  <div class="a"><span>' + A + '</span><b>' + netto(r.andrea) + '</b><small>' + (k.andrea ? eur(r.half) + ' utile − ' + eur(k.andrea) + ' per ' + paiaTxt(n.andrea) + ' tenut' + (n.andrea === 1 ? 'o' : 'i') : '50% dell\'utile') + '</small></div>' +
+      '  <div class="b"><span>' + B + '</span><b>' + eur(r.benny) + '</b><small>' + eur(r.rimb) + ' capitale + ' + eur(r.half) + ' utile' + (k.benedetto ? ' · + ' + paiaTxt(n.benedetto) + ' in scarpe (' + eur(k.benedetto) + ')' : '') + '</small></div>' +
+      '  <div class="g"><span>' + G + '</span><b>' + netto(r.gianluigi) + '</b><small>' + feeP + '% di ' + eur(r.incassato) + (k.gianluigi ? ' − ' + eur(k.gianluigi) + ' per ' + paiaTxt(n.gianluigi) + ' tenut' + (n.gianluigi === 1 ? 'o' : 'i') : '') + '</small></div>' +
       '</div>';
   }
 
   function bilancioHTML(paia, imp, incassato) {
     var b = imp.bilancio || { fee_percentuale: 5, soci: {} }, so = b.soci || {};
     var feeP = num(b.fee_percentuale), cap = num((imp.acquisto || {}).totale);
-    var r = ripartisci(incassato, feeP, cap);
+    var keep = paiaTenute(paia, imp), vendibili = paia.length - keep.tot;
+    var r = ripartisci(incassato, feeP, cap, keep);
     return '<section class="lg-section lg-bil2">' +
-      '<header class="lg-bil2-h"><h2>Bilancio</h2><p class="lg-sub">Incassato finora: <b>' + eur(incassato) + '</b>. Si aggiorna da solo a ogni vendita incassata.</p></header>' +
+      '<header class="lg-bil2-h"><h2>Bilancio</h2><p class="lg-sub">Incassato dalle vendite: <b>' + eur(incassato) + '</b>. Si aggiorna da solo.</p></header>' +
       '<div class="lg-bil2-now">' + bilancioVista(r, so, cap, feeP, 'now-') + '</div>' +
-      '<div class="lg-sim2"><div class="lg-sim2-h"><h3>Simulazione</h3><label>Se vendo tutte le ' + paia.length + ' paia a una media di ' +
+      '<div class="lg-sim2"><div class="lg-sim2-h"><h3>Simulazione</h3><label>Se vendo le ' + vendibili + ' paia non tenute a una media di ' +
       '<span class="lg-eur"><span>€</span><input id="sim-p" type="number" min="0" step="10" value="' + esc(store('lg-sim') || 200) + '" inputmode="numeric" aria-label="Prezzo medio a paio"></span> a paio' +
       ' <span class="lg-sim2-tot">= <b id="sim-tot"></b> incassati</span></label></div>' +
       '<div id="sim-box">' + bilancioVista(r, so, cap, feeP, 'sim-') + '</div></div>' +
       '</section>';
   }
 
-  function bindBilancio(n, imp) {
+  function bindBilancio(n, imp, keep) {
     var inp = $('#sim-p'), box = $('#sim-box'); if (!inp || !box) return;
     var b = imp.bilancio || {}, so = b.soci || {}, feeP = num(b.fee_percentuale), cap = num((imp.acquisto || {}).totale);
     function calcSim() {
       var tot = n * Math.max(0, num(inp.value));
       $('#sim-tot').textContent = eur(tot);
-      box.innerHTML = bilancioVista(ripartisci(tot, feeP, cap), so, cap, feeP, 'sim-');
+      box.innerHTML = bilancioVista(ripartisci(tot, feeP, cap, keep), so, cap, feeP, 'sim-');
       store('lg-sim', inp.value);
     }
     inp.addEventListener('input', calcSim); calcSim();
@@ -827,13 +863,23 @@
 
     // Intestazione compatta
     h += '<header class="lg-mhead"><div class="lg-ph lg-mhead-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" width="1200" height="900"></div>' +
-      '<div class="lg-mhead-b"><div class="lg-hero-top"><span class="lg-id big">' + esc(p.id) + '</span><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(LABEL[p.stato]) + '</span></div>' +
+      '<div class="lg-mhead-b"><div class="lg-hero-top"><span class="lg-id big">' + esc(p.id) + '</span><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(etichettaStato(p)) + '</span></div>' +
       '<h1>' + esc(p.nome) + '</h1><p class="lg-mhead-sub">' + esc(p.sesso) + ' · Taglia <b>' + esc(p.taglia) + '</b></p>' +
       '<dl class="lg-mnums"><div><dt>Costo</dt><dd>' + eur(c.costo) + '</dd></div><div><dt>Listino</dt><dd>' + eur(p.listino) + '</dd></div>' +
       (c.venduta && p.vendita
         ? '<div><dt>Venduta a</dt><dd>' + eur(p.vendita) + '</dd></div><div><dt>Guadagno</dt><dd class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + (c.margine > 0 ? '+' : '') + eur(c.margine) + '</dd></div>'
         : '') + '</dl></div></header>';
 
+    // Paio tenuto da un socio: niente percorso di vendita
+    if (p.stato === 'tenuta') {
+      var socio = nomeDi(p.tenuta_da), primo = socio.split(' ')[0];
+      h += '<section class="lg-next s-tenuta"><div class="lg-next-h"><div class="lg-next-top"><span class="lg-next-tag">Tenuta da un socio</span>' +
+        '<button type="button" class="lg-back-step" data-rimetti>↩ Rimetti in vendita</button></div><h2>Tenuta da ' + esc(socio) + '</h2>' +
+        '<p>' + (p.tenuta_da === 'benedetto'
+          ? 'Vale come ' + eur(c.costo) + ' di capitale restituito a ' + esc(primo) + ' in scarpe.'
+          : esc(primo) + ' la paga al costo reale: <b>' + eur(c.costo) + '</b>, senza il 5%.') +
+        (p.data_tenuta ? ' Dal ' + esc(dataIt(p.data_tenuta)) + '.' : '') + '</p></div></section>';
+    } else {
     // Avanzamento
     h += '<ol class="lg-steps four">';
     STATI.forEach(function (s, i) {
@@ -852,6 +898,13 @@
     } else {
       h += '<section class="lg-next done"><div class="lg-next-h"><div class="lg-next-top"><span class="lg-next-tag">Completato</span><button type="button" class="lg-back-step" data-back="' + STATI[cur - 1].key + '">↩ Torna a ' + STATI[cur - 1].label.toLowerCase() + '</button></div><h2>Pratica chiusa</h2>' +
         '<p>Venduta a ' + eur(p.vendita) + ' · guadagno netto <b class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + eur(c.margine) + '</b>.</p></div></section>';
+    }
+
+    }
+    if (p.stato === 'disponibile') {
+      var soK = nomiSoci(S.imp);
+      h += '<section class="lg-keep"><p><b>Oppure la tiene uno di voi?</b> Si paga al costo reale (' + eur(c.costo) + '), senza 5%.</p><div class="lg-keep-b">' +
+        Object.keys(soK).map(function (k) { return '<button type="button" class="lg-btn" data-keep="' + esc(k) + '">Tienila per ' + esc(soK[k].split(' ')[0]) + '</button>'; }).join('') + '</div></section>';
     }
 
     // Passi completati
@@ -980,6 +1033,20 @@
       savePaio(d, a < da ? 'Riportata a ' + LABEL[k].toLowerCase() : 'Stato: ' + LABEL[k]);
     }
     $$('.lg-step').forEach(function (b) { b.onclick = function () { vaiA(b.dataset.stato, true); }; });
+    $$('[data-keep]').forEach(function (b) {
+      b.onclick = function () {
+        var chi = b.dataset.keep, nome = nomeDi(chi);
+        if (!confirm(p.id + ' la tiene ' + nome + '?\nPrezzo: costo reale, senza 5%. Si può sempre rimettere in vendita.')) return;
+        var d = clone(p); d.stato = 'tenuta'; d.tenuta_da = chi; d.data_tenuta = oggi();
+        savePaio(d, 'Tenuta da ' + nome.split(' ')[0]);
+      };
+    });
+    var rim = $('[data-rimetti]');
+    if (rim) rim.onclick = function () {
+      if (!confirm('Rimettere in vendita ' + p.id + '?')) return;
+      var d = clone(p); d.stato = 'disponibile'; delete d.tenuta_da; delete d.data_tenuta;
+      savePaio(d, 'Rimessa in vendita');
+    };
     $$('[data-back]').forEach(function (b) { b.onclick = function () { vaiA(b.dataset.back, true); }; });
 
     $('#note-f').addEventListener('submit', function (e) {

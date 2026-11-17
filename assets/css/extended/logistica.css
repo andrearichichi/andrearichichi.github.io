@@ -686,3 +686,21 @@ label.lg-btn { display: inline-flex; align-items: center; }
 .lg-f input[type=date]::-webkit-calendar-picker-indicator { margin-left: auto; }
 
 @media (max-width: 640px) { .lg-drop-hint { display: none; } }
+
+/* ===================== Paia tenute dai soci ===================== */
+.lg .s-tenuta { --c: #0d9488; }
+.dark .lg .s-tenuta { --c: #2dd4bf; }
+.lg-pipe { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.lg-keep { margin-top: 12px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: var(--r); font-size: 14px; }
+.lg-keep p { margin: 0 0 10px; color: var(--muted); }
+.lg-keep p b { color: var(--primary); }
+.lg-keep-b { display: flex; flex-wrap: wrap; gap: 8px; }
+.lg-keepnote { color: #0d9488; }
+.lg-next.s-tenuta { border-color: #0d9488; }
+@media (max-width: 640px) {
+  .lg-pipe { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+  .lg-chip-n { font-size: 14px; }
+  .lg-chip-l { font-size: 8.5px; }
+  .lg-keep { padding: 11px 12px; font-size: 12.5px; }
+  .lg-keep .lg-btn { padding: 7px 10px; font-size: 13px; }
+}
