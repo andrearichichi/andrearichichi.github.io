@@ -77,10 +77,10 @@
   /* =====================================================================
      Backend
      ===================================================================== */
-  function SupabaseBackend(pass) {
+  function SupabaseBackend(pass, chi) {
     var sb = window.supabase.createClient(CFG.url, CFG.key, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { 'x-logistica-pass': pass } }
+      global: { headers: { 'x-logistica-pass': pass, 'x-logistica-utente': chi || '' } }
     });
     var chan = null;
     function chk(r) { if (r.error) throw r.error; return r.data; }
@@ -97,6 +97,13 @@
           return { paia: res[0].map(function (r) { var d = r.dati; d.id = r.id; d._agg = r.aggiornato; return d; }), imp: imp };
         });
       },
+      registro: function (o) {
+        o = o || {};
+        var q = sb.from('registro').select('id,quando,chi,tipo,paio_id,dettagli').order('id', { ascending: false }).limit(o.limit || 200);
+        if (o.paio) q = q.eq('paio_id', o.paio);
+        return q.then(function (r) { return r.error ? null : r.data; });   // null = registro non ancora attivo
+      },
+      nota: function (paio, testo) { return sb.rpc('aggiungi_evento', { p_paio: paio, p_testo: testo }).then(chk); },
       savePaio: function (p) {
         var d = clone(p); delete d._agg;
         return sb.from('paia').update({ dati: d, aggiornato: new Date().toISOString() }).eq('id', p.id).select('id').then(chk)
@@ -126,32 +133,55 @@
     };
   }
 
-  function DemoBackend(pass) {
+  // Demo locale: emula anche il registro (scritto dal "server" finto, mai modificabile dall'interfaccia)
+  function DemoBackend(pass, chi) {
     var KEY = 'lg-demo-db';
     var db = null;
     function persist() { store(KEY, JSON.stringify(db)); }
+    function reload() { try { db = JSON.parse(store(KEY)); } catch (e) {} }
     function ensure() {
       if (db) return Promise.resolve();
       var saved = store(KEY);
-      if (saved) { try { db = JSON.parse(saved); return Promise.resolve(); } catch (e) {} }
+      if (saved) { try { db = JSON.parse(saved); if (!db.registro) db.registro = []; return Promise.resolve(); } catch (e) {} }
       return fetch(CFG.base + 'seed.json', { cache: 'no-store' }).then(function (r) {
         if (!r.ok) throw new Error('seed.json mancante');
         return r.json();
-      }).then(function (seed) { db = { paia: seed.paia, imp: seed.impostazioni, allegati: [] }; persist(); });
+      }).then(function (seed) { db = { paia: seed.paia, imp: seed.impostazioni, allegati: [], registro: [] }; persist(); });
+    }
+    function log(tipo, paio, dett) {
+      var id = db.registro.length ? db.registro[db.registro.length - 1].id + 1 : 1;
+      db.registro.push({ id: id, quando: new Date().toISOString(), chi: chi || null, tipo: tipo, paio_id: paio, dettagli: dett || {} });
     }
     var bc = null; try { bc = new BroadcastChannel('lg-demo'); } catch (e) {}
     return {
       verify: function () { return Promise.resolve(!!pass); }, // demo locale: nessuna password reale nel codice
-      load: function () { return ensure().then(function () { return { paia: clone(db.paia), imp: clone(db.imp) }; }); },
+      load: function () { return ensure().then(function () { reload(); return { paia: clone(db.paia), imp: clone(db.imp) }; }); },
+      registro: function (o) {
+        o = o || {};
+        return ensure().then(function () {
+          reload();
+          return db.registro.filter(function (r) { return !o.paio || r.paio_id === o.paio; }).slice().reverse().slice(0, o.limit || 200);
+        });
+      },
+      nota: function (paio, testo) { return ensure().then(function () { reload(); log('nota', paio, { testo: testo }); persist(); }); },
       savePaio: function (p) {
         return ensure().then(function () {
-          var d = clone(p); delete d._agg; d._aggLocal = new Date().toISOString();
+          reload();
+          var d = clone(p); delete d._agg;
+          var old = db.paia.filter(function (x) { return x.id === p.id; })[0] || {};
+          var cambi = {};
+          Object.keys(Object.assign({}, old, d)).forEach(function (k) {
+            if (k === 'storico' || k === '_aggLocal') return;
+            if (JSON.stringify(old[k]) !== JSON.stringify(d[k])) cambi[k] = [old[k] === undefined ? null : old[k], d[k] === undefined ? null : d[k]];
+          });
+          if (Object.keys(cambi).length) log('modifica', p.id, cambi);
           db.paia = db.paia.map(function (x) { return x.id === p.id ? d : x; }); persist();
         });
       },
-      saveImp: function (k, v) { return ensure().then(function () { db.imp[k] = v; persist(); }); },
+      saveImp: function (k, v) { return ensure().then(function () { reload(); db.imp[k] = v; persist(); }); },
       listAllegati: function (id) {
         return ensure().then(function () {
+          reload();
           return db.allegati.filter(function (a) { return a.paio_id === id; }).map(function (a) {
             return { id: a.id, nome: a.nome, tipo: a.tipo, dimensione: a.dimensione, creato: a.creato };
           });
@@ -162,11 +192,21 @@
       },
       addAllegato: function (id, a) {
         return ensure().then(function () {
+          reload();
           db.allegati.push({ id: 'a' + Date.now() + Math.random().toString(36).slice(2, 6), paio_id: id, nome: a.nome, tipo: a.tipo, dimensione: a.dimensione, dati: a.dati, creato: new Date().toISOString() });
+          log('file_aggiunto', id, { nome: a.nome, tipo: a.tipo });
           persist();
         });
       },
-      delAllegato: function (aid) { return ensure().then(function () { db.allegati = db.allegati.filter(function (x) { return x.id !== aid; }); persist(); }); },
+      delAllegato: function (aid) {
+        return ensure().then(function () {
+          reload();
+          var a = db.allegati.filter(function (x) { return x.id === aid; })[0];
+          db.allegati = db.allegati.filter(function (x) { return x.id !== aid; });
+          if (a) log('file_eliminato', a.paio_id, { nome: a.nome, tipo: a.tipo });
+          persist();
+        });
+      },
       subscribe: function (cb) { if (bc) bc.onmessage = function (e) { db = null; cb(e.data || {}); }; },
       notify: function (payload) { if (bc) bc.postMessage(payload || {}); }
     };
@@ -177,7 +217,7 @@
      ===================================================================== */
   var S = {
     be: null, paia: [], imp: {}, loaded: false, lastSync: null, syncing: false,
-    stato: '', editing: false, pendingRefresh: false, allegati: {}, allegatiFor: null
+    stato: '', editing: false, pendingRefresh: false, allegati: {}, allegatiFor: null, reg: null, chi: store('lg-chi') || ''
   };
   var filters = (function () { try { return JSON.parse(store('lg-filters') || '{}') || {}; } catch (e) { return {}; } })();
   S.stato = filters.st || '';
@@ -210,11 +250,27 @@
     setTimeout(function () { var i = $('input', root); if (i) i.focus(); }, 30);
   }
 
+  function nomiSoci(imp) { return ((imp || {}).bilancio || {}).soci || {}; }
+  function nomeDi(chi) { var so = nomiSoci(S.imp); return (chi && so[chi]) || (chi ? chi : 'Sconosciuto'); }
+
+  function renderChi(pw, imp, cambio) {
+    var so = nomiSoci(imp), keys = Object.keys(so);
+    root.innerHTML = '<div class="lg-login"><div class="lg-login-box"><h1>Chi sei?</h1>' +
+      '<p class="lg-sub">Serve per il registro attività: ogni modifica viene firmata con il tuo nome. Lo chiediamo una volta sola su questo dispositivo.</p>' +
+      '<div class="lg-chi">' + keys.map(function (k) { return '<button type="button" class="lg-btn" data-chi="' + esc(k) + '">' + esc(so[k]) + '</button>'; }).join('') + '</div>' +
+      (cambio ? '<button type="button" class="lg-link" id="chi-annulla">Annulla</button>' : '') + '</div></div>';
+    $$('[data-chi]').forEach(function (b) {
+      b.onclick = function () { store('lg-chi', b.dataset.chi); S.chi = b.dataset.chi; location.reload(); };
+    });
+    var an = $('#chi-annulla'); if (an) an.onclick = function () { rerender(); };
+  }
+
   function start(pw, interactive) {
-    var be = DEMO ? DemoBackend(pw) : SupabaseBackend(pw);
+    var be = DEMO ? DemoBackend(pw, S.chi) : SupabaseBackend(pw, S.chi);
     return be.verify().then(function (ok) {
       if (!ok) { store('lg-pass', null); throw new Error('bad'); }
       store('lg-pass', pw);
+      if (!S.chi) { return be.load().then(function (d) { renderChi(pw, d.imp); }); }
       S.be = be;
       root.innerHTML = '<p class="lg-loading">Caricamento…</p>';
       be.subscribe(function (payload) { refresh(payload && payload.id); });
@@ -239,8 +295,10 @@
   function refresh(changedId) {
     if (!S.be || S.syncing) return Promise.resolve();
     S.syncing = true;
-    return S.be.load().then(function (d) {
+    return Promise.all([S.be.load(), S.be.registro({ limit: 200 })]).then(function (res) {
+      var d = res[0]; S.reg = res[1];
       S.paia = d.paia.sort(sortById); S.imp = d.imp || {}; S.loaded = true; S.lastSync = new Date();
+      updateBell();
       S.syncing = false;
       if (changedId && S.allegatiFor === changedId) S.allegatiFor = null;
       if (S.editing) { S.pendingRefresh = true; showSyncBadge(); return; }
@@ -269,8 +327,74 @@
     }).catch(function (e) { toast('Salvataggio non riuscito: ' + (e.message || e), true); throw e; });
   }
 
-  function addStorico(p, testo) {
-    p.storico = (p.storico || []).concat([{ data: oggi(), evento: testo }]);
+  /* =====================================================================
+     Registro attività (scritto dal database, immodificabile)
+     ===================================================================== */
+  var CAMPI = {
+    stato: 'Stato', vendita: 'Prezzo di vendita', canale: 'Dove venduta', data_vendita: 'Data vendita',
+    data_spedizione: 'Data spedizione', data_conclusione: 'Data chiusura', note: 'Note', nome: 'Modello',
+    codice: 'Codice', sesso: 'Uomo/Donna', taglia: 'Taglia', listino: 'Listino', pagato: 'Pagato',
+    condizione: 'Condizione', posizione: 'Dove si trova', pagamento_ricevuto: 'Pagamento ricevuto',
+    data_pagamento: 'Data pagamento', commissioni: 'Commissioni', acquirente: 'Acquirente'
+  };
+  var SOLDI = ['vendita', 'listino', 'pagato', 'commissioni', 'costo_spedizione'];
+  function valore(k, v) {
+    if (v === null || v === undefined || v === '') return '—';
+    if (k === 'stato') return LABEL[v] || v;
+    if (SOLDI.indexOf(k) !== -1) return eur(v);
+    if (/^data_/.test(k)) return dataIt(v);
+    if (v === true) return 'sì'; if (v === false) return 'no';
+    return String(v);
+  }
+  function descrivi(ev) {
+    var d = ev.dettagli || {};
+    switch (ev.tipo) {
+      case 'modifica':
+        var parti = [];
+        if (d.stato) parti.push('<b>' + esc(valore('stato', d.stato[0])) + ' → ' + esc(valore('stato', d.stato[1])) + '</b>');
+        Object.keys(d).forEach(function (k) {
+          if (k === 'stato') return;
+          parti.push(esc(CAMPI[k] || k) + ': ' + esc(valore(k, d[k][0])) + ' → ' + esc(valore(k, d[k][1])));
+        });
+        return parti.join(' · ');
+      case 'file_aggiunto': return 'Caricato file <b>' + esc(d.nome || '') + '</b>';
+      case 'file_eliminato': return 'Eliminato file <b>' + esc(d.nome || '') + '</b>';
+      case 'nota': return '📝 ' + esc(d.testo || '');
+      case 'impostazioni': return 'Impostazioni modificate (' + esc(d.chiave || '') + ')';
+      case 'paio_aggiunto': return 'Paio aggiunto';
+      case 'paio_eliminato': return 'Paio eliminato';
+      default: return esc(ev.tipo);
+    }
+  }
+  function quandoIt(t) {
+    var d = new Date(t);
+    return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  }
+  function eventoHTML(ev, conPaio) {
+    return '<li><div class="lg-ev-h"><b>' + esc(nomeDi(ev.chi)) + '</b>' + (conPaio && ev.paio_id ? ' · <a href="#/' + esc(ev.paio_id) + '">' + esc(ev.paio_id) + '</a>' : '') +
+      '<time>' + esc(quandoIt(ev.quando)) + '</time></div><div class="lg-ev-d">' + descrivi(ev) + '</div></li>';
+  }
+  function nonViste() {
+    if (!S.reg) return 0;
+    var seen = num(store('lg-seen'));
+    return S.reg.filter(function (e) { return e.id > seen && e.chi !== S.chi; }).length;
+  }
+  function updateBell() {
+    var b = $('#lg-bell-n'); if (!b) return;
+    var n = nonViste(); b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
+  }
+  function apriAttivita() {
+    var old = $('#lg-panel'); if (old) { old.remove(); return; }
+    var el = document.createElement('div'); el.id = 'lg-panel'; el.className = 'lg-panel-wrap';
+    var seen = num(store('lg-seen'));
+    el.innerHTML = '<div class="lg-panel" role="dialog" aria-label="Attività"><div class="lg-panel-h"><h2>Attività</h2><button type="button" class="lg-link" id="lg-panel-x">Chiudi</button></div>' +
+      (S.reg === null ? '<p class="lg-empty">Il registro attività non è ancora attivo sul database.</p>'
+        : '<p class="lg-panel-s">Registro scritto dal database: nessuno può modificarlo o cancellarlo.</p><ul class="lg-ev">' +
+          (S.reg.length ? S.reg.map(function (e) { return eventoHTML(e, true).replace('<li>', '<li class="' + (e.id > seen && e.chi !== S.chi ? 'new' : '') + '">'); }).join('') : '<li class="lg-empty">Nessuna attività.</li>') + '</ul>') +
+      '</div>';
+    document.body.appendChild(el);
+    if (S.reg && S.reg.length) { store('lg-seen', String(S.reg[0].id)); updateBell(); }
+    el.addEventListener('click', function (e) { if (e.target === el || e.target.id === 'lg-panel-x' || e.target.closest('.lg-ev a')) el.remove(); });
   }
 
   /* =====================================================================
@@ -294,12 +418,17 @@
 
   function topbar() {
     return '<div class="lg-topbar"><span id="lg-sync" class="lg-sync"></span>' +
-      '<span class="lg-topbar-r"><button type="button" class="lg-link" id="lg-refresh">Aggiorna</button>' +
+      '<span class="lg-topbar-r"><button type="button" class="lg-bell" id="lg-bell" title="Attività">🔔 Attività <span id="lg-bell-n" hidden></span></button>' +
+      '<button type="button" class="lg-link" id="lg-chi" title="Cambia utente">' + esc(nomeDi(S.chi).split(' ')[0]) + '</button>' +
+      '<button type="button" class="lg-link" id="lg-refresh">Aggiorna</button>' +
       '<button type="button" class="lg-link" id="lg-logout">Esci</button></span></div>';
   }
   function bindTopbar() {
     var r = $('#lg-refresh'); if (r) r.onclick = function () { refresh().then(function () { toast('Aggiornato'); }); };
     var l = $('#lg-logout'); if (l) l.onclick = logout;
+    var b = $('#lg-bell'); if (b) b.onclick = apriAttivita;
+    var c = $('#lg-chi'); if (c) c.onclick = function () { if (confirm('Cambiare utente su questo dispositivo?')) { store('lg-chi', null); location.reload(); } };
+    updateBell();
   }
 
   /* =====================================================================
@@ -586,7 +715,7 @@
       '<div class="lg-mhead-b"><div class="lg-hero-top"><span class="lg-id big">' + esc(p.id) + '</span><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(LABEL[p.stato]) + '</span></div>' +
       '<h1>' + esc(p.nome) + '</h1><p class="lg-mhead-sub">' + esc(p.sesso) + ' · Taglia <b>' + esc(p.taglia) + '</b></p>' +
       '<dl class="lg-mnums"><div><dt>Costo</dt><dd>' + eur(c.costo) + '</dd></div><div><dt>Listino</dt><dd>' + eur(p.listino) + '</dd></div>' +
-      (p.vendita
+      (c.venduta && p.vendita
         ? '<div><dt>Venduta a</dt><dd>' + eur(p.vendita) + '</dd></div><div><dt>Guadagno</dt><dd class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + (c.margine > 0 ? '+' : '') + eur(c.margine) + '</dd></div>'
         : '') + '</dl></div></header>';
 
@@ -601,12 +730,12 @@
     // Prossimo passo
     if (nextKey) {
       var P = PASSI[nextKey];
-      h += '<section class="lg-next s-' + nextKey + '"><div class="lg-next-h"><span class="lg-next-tag">Prossimo passo</span><h2>' + (cur + 2) + '. ' + LABEL[nextKey] + '</h2>' +
+      h += '<section class="lg-next s-' + nextKey + '"><div class="lg-next-h"><div class="lg-next-top"><span class="lg-next-tag">Prossimo passo</span>' + (cur > 0 ? '<button type="button" class="lg-back-step" data-back="' + STATI[cur - 1].key + '">↩ Torna a ' + STATI[cur - 1].label.toLowerCase() + '</button>' : '') + '</div><h2>' + (cur + 2) + '. ' + LABEL[nextKey] + '</h2>' +
         '<p>' + esc(P.quando) + ' Compila i campi e premi il pulsante.</p></div>' + formPasso(nextKey, p, 'avanza') +
         (nextKey === 'venduto' ? '<details class="lg-ad"><summary>Testo per l\'annuncio</summary><textarea id="ad" rows="5">Golden Goose – ' + esc(p.nome) + '\nTaglia ' + esc(p.taglia) + ' EU (' + esc(p.sesso) + ')\nNuove, mai indossate, con scatola originale.\nCodice articolo: ' + esc(p.codice) + '\nPrezzo di listino: ' + eur(p.listino) + '</textarea><button type="button" class="lg-btn" id="copy-ad">Copia testo</button></details>' : '') +
         '</section>';
     } else {
-      h += '<section class="lg-next done"><div class="lg-next-h"><span class="lg-next-tag">Completato</span><h2>Pratica chiusa</h2>' +
+      h += '<section class="lg-next done"><div class="lg-next-h"><div class="lg-next-top"><span class="lg-next-tag">Completato</span><button type="button" class="lg-back-step" data-back="' + STATI[cur - 1].key + '">↩ Torna a ' + STATI[cur - 1].label.toLowerCase() + '</button></div><h2>Pratica chiusa</h2>' +
         '<p>Venduta a ' + eur(p.vendita) + ' · guadagno netto <b class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + eur(c.margine) + '</b>.</p></div></section>';
     }
 
@@ -629,11 +758,11 @@
       '<p class="lg-drop-hint">' + (nextKey ? 'In questo passo: carica ' + esc(fileHint) + '.' : 'Puoi caricare qualsiasi documento utile.') + ' Trascina qui o incolla con <kbd>⌘V</kbd>.</p></div></section>';
 
     // Altro (chiuso)
-    h += '<details class="lg-more"><summary>Note e diario' + (p.storico && p.storico.length ? ' · ' + p.storico.length : '') + '</summary>' +
-      '<form class="lg-note-f" id="note-f"><label class="lg-f wide"><span>Note</span><textarea name="note" rows="3">' + esc(p.note || '') + '</textarea></label><button class="lg-btn">Salva nota</button></form>' +
-      '<ul class="lg-log">' + (p.storico && p.storico.length ? p.storico.slice().reverse().map(function (e) { return '<li><time>' + esc(dataIt(e.data)) + '</time><span>' + esc(e.evento) + '</span></li>'; }).join('') : '<li class="lg-empty">Nessun evento.</li>') + '</ul>' +
-      '<form class="lg-logadd" id="log-add"><input type="date" name="d" value="' + oggi() + '" aria-label="Data"><input type="text" name="t" placeholder="Aggiungi un evento…" aria-label="Evento" required><button class="lg-btn">Aggiungi</button></form></details>';
-
+    h += '<section class="lg-hist"><div class="lg-box-h"><h3>Storico <small>· non modificabile</small></h3></div>' +
+      '<ul class="lg-ev" id="lg-hist"><li class="lg-empty">Caricamento…</li></ul>' +
+      '<form class="lg-logadd" id="log-add"><input type="text" name="t" placeholder="Aggiungi una nota allo storico…" aria-label="Nota" maxlength="500" required><button class="lg-btn">Aggiungi</button></form></section>';
+    h += '<details class="lg-more"' + (p.note ? ' open' : '') + '><summary>Note</summary>' +
+      '<form class="lg-note-f" id="note-f"><label class="lg-f wide"><span>Note (modificabili; ogni modifica resta nello storico)</span><textarea name="note" rows="3">' + esc(p.note || '') + '</textarea></label><button class="lg-btn">Salva nota</button></form></details>';
     h += '<details class="lg-more"><summary>Dettagli prodotto e costo</summary><dl class="lg-kv sm">' +
       kv('Codice articolo', '<span class="mono">' + esc(p.codice) + '</span>') + kv('Condizione', esc(p.condizione || 'Nuova')) + kv('Dove si trova', esc(p.posizione || '')) +
       kv('Prezzo pagato', eur(p.pagato) + ' <small>(−' + pct(c.sconto) + ' sul listino)</small>') +
@@ -650,6 +779,16 @@
     bindTopbar();
     bindDetail(p, prev, next);
     loadAllegati(p.id);
+    loadStorico(p.id);
+  }
+
+  function loadStorico(id) {
+    var ul = $('#lg-hist'); if (!ul) return;
+    S.be.registro({ paio: id, limit: 300 }).then(function (rows) {
+      if (currentId() !== id || !$('#lg-hist')) return;
+      if (rows === null) { ul.innerHTML = '<li class="lg-empty">Il registro attività non è ancora attivo sul database.</li>'; return; }
+      ul.innerHTML = rows.length ? rows.map(function (e) { return eventoHTML(e, false); }).join('') : '<li class="lg-empty">Nessuna attività registrata.</li>';
+    });
   }
 
   var NUMERIC = ['vendita', 'commissioni', 'costo_spedizione', 'taglia', 'listino', 'pagato'];
@@ -668,10 +807,7 @@
   }
 
   function logModifiche(p, d) {
-    if (d.vendita && d.vendita !== p.vendita) addStorico(d, 'Prezzo di vendita: ' + eur(d.vendita));
-    if (d.acquirente && d.acquirente !== p.acquirente) addStorico(d, 'Acquirente: ' + d.acquirente);
-    if (d.tracking && d.tracking !== p.tracking) addStorico(d, 'Tracking: ' + d.tracking);
-    if (d.pagamento_ricevuto && !p.pagamento_ricevuto) { addStorico(d, 'Pagamento ricevuto'); if (!d.data_pagamento) d.data_pagamento = oggi(); }
+    if (d.pagamento_ricevuto && !p.pagamento_ricevuto && !d.data_pagamento) d.data_pagamento = oggi();
   }
 
   function setEditing(on) { S.editing = on; if (!on && S.pendingRefresh) { S.pendingRefresh = false; rerender(); } showSyncBadge(); }
@@ -695,7 +831,6 @@
         if (cambiaStato) {
           var manca = PASSI[key].campi.filter(function (c) { return (c[3] || {}).req && !d[c[0]]; }).map(function (c) { return c[1]; });
           if (manca.length) { err.textContent = 'Per segnare come ' + LABEL[key].toLowerCase() + ' serve: ' + manca.join(', ') + '.'; err.hidden = false; return; }
-          addStorico(d, 'Stato: ' + LABEL[p.stato] + ' → ' + LABEL[key]);
           d.stato = key;
           var campoData = (STATI[ORDER.indexOf(key)] || {}).campo;
           if (campoData && !d[campoData]) d[campoData] = oggi();
@@ -720,18 +855,21 @@
       };
     });
 
-    $$('.lg-step').forEach(function (b) {
-      b.onclick = function () {
-        var k = b.dataset.stato; if (k === p.stato) return;
-        if (!confirm('Impostare lo stato di ' + p.id + ' su "' + LABEL[k] + '"?\nI dati già inseriti restano salvati.')) return;
-        var d = clone(p);
-        addStorico(d, 'Stato: ' + LABEL[p.stato] + ' → ' + LABEL[k]);
-        d.stato = k;
-        var campoData = (STATI[ORDER.indexOf(k)] || {}).campo;
-        if (campoData && !d[campoData]) d[campoData] = oggi();
-        savePaio(d, 'Stato: ' + LABEL[k]);
-      };
-    });
+    function vaiA(k, conferma) {
+      if (k === p.stato) return;
+      var da = ORDER.indexOf(p.stato), a = ORDER.indexOf(k);
+      var msg = a < da
+        ? 'Riportare ' + p.id + ' a "' + LABEL[k] + '"?\nLe date dei passi successivi verranno tolte; prezzo, file e note restano.'
+        : 'Impostare lo stato di ' + p.id + ' su "' + LABEL[k] + '"?';
+      if (conferma && !confirm(msg)) return;
+      var d = clone(p);
+      d.stato = k;
+      if (a < da) STATI.slice(a + 1).forEach(function (st) { if (st.campo) delete d[st.campo]; });
+      else { var campoData = (STATI[a] || {}).campo; if (campoData && !d[campoData]) d[campoData] = oggi(); }
+      savePaio(d, a < da ? 'Riportata a ' + LABEL[k].toLowerCase() : 'Stato: ' + LABEL[k]);
+    }
+    $$('.lg-step').forEach(function (b) { b.onclick = function () { vaiA(b.dataset.stato, true); }; });
+    $$('[data-back]').forEach(function (b) { b.onclick = function () { vaiA(b.dataset.back, true); }; });
 
     $('#note-f').addEventListener('submit', function (e) {
       e.preventDefault(); var d = clone(p); var t = e.target.note.value.trim();
@@ -742,8 +880,10 @@
     $('#log-add').addEventListener('submit', function (e) {
       e.preventDefault();
       var t = e.target.t.value.trim(); if (!t) return;
-      var d = clone(p); d.storico = (d.storico || []).concat([{ data: e.target.d.value || oggi(), evento: t }]);
-      savePaio(d, 'Evento aggiunto');
+      var btn = $('button', e.target); btn.disabled = true;
+      S.be.nota(p.id, t).then(function () {
+        e.target.t.value = ''; btn.disabled = false; S.be.notify({ id: p.id }); toast('Nota aggiunta allo storico'); loadStorico(p.id); refresh();
+      }).catch(function (err) { btn.disabled = false; toast('Nota non salvata: ' + (err.message || err), true); });
     });
 
     var cp = $('#copy-ad');
@@ -801,7 +941,7 @@
         };
         $('.lg-shot-del', el).onclick = function () {
           if (!confirm('Eliminare "' + a.nome + '"?')) return;
-          S.be.delAllegato(a.id).then(function () { delete thumbCache[a.id]; S.be.notify({ id: id }); toast('File eliminato'); loadAllegati(id); })
+          S.be.delAllegato(a.id).then(function () { delete thumbCache[a.id]; S.be.notify({ id: id }); toast('File eliminato'); loadAllegati(id); loadStorico(id); refresh(); })
             .catch(function (e) { toast('Eliminazione non riuscita: ' + (e.message || e), true); });
         };
       });
@@ -852,7 +992,7 @@
     chain.then(function () {
       if (ok) {
         var p = byId(id);
-        if (p) { var d = clone(p); addStorico(d, ok === 1 ? 'Caricato 1 file' : 'Caricati ' + ok + ' file'); S.be.savePaio(d).then(function () { S.be.notify({ id: id }); refresh(); }); }
+        S.be.notify({ id: id }); refresh().then(function () { loadStorico(id); });
         toast(ok === 1 ? 'File caricato' : ok + ' file caricati');
       }
       loadAllegati(id);
