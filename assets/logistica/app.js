@@ -17,7 +17,6 @@
 
   var STATI = [
     { key: 'disponibile', label: 'Disponibile', campo: '', desc: 'In magazzino, in vendita' },
-    { key: 'riservato', label: 'Riservato', campo: 'data_riservato', desc: 'Bloccato per un acquirente' },
     { key: 'venduto', label: 'Venduto', campo: 'data_vendita', desc: 'Accordo chiuso, da spedire/consegnare' },
     { key: 'spedito', label: 'Spedito', campo: 'data_spedizione', desc: "In viaggio verso l'acquirente" },
     { key: 'concluso', label: 'Concluso', campo: 'data_conclusione', desc: 'Consegnato e pagato, pratica chiusa' }
@@ -416,7 +415,7 @@
   }
 
   function exportCSV(ids) {
-    var cols = ['id', 'codice', 'nome', 'sesso', 'taglia', 'listino', 'pagato', 'costo_reale', 'stato', 'vendita', 'commissioni', 'costo_spedizione', 'margine', 'canale', 'acquirente', 'contatto', 'metodo_pagamento', 'pagamento_ricevuto', 'data_riservato', 'data_vendita', 'data_spedizione', 'data_consegna', 'data_conclusione', 'corriere', 'tracking', 'posizione', 'note'];
+    var cols = ['id', 'codice', 'nome', 'sesso', 'taglia', 'listino', 'pagato', 'costo_reale', 'stato', 'vendita', 'commissioni', 'costo_spedizione', 'margine', 'canale', 'acquirente', 'contatto', 'metodo_pagamento', 'pagamento_ricevuto', 'data_vendita', 'data_spedizione', 'data_consegna', 'data_conclusione', 'corriere', 'tracking', 'posizione', 'note'];
     var lines = [cols.join(';')];
     ids.forEach(function (id) {
       var p = byId(id), c = calc(p, S.paia, S.imp);
@@ -434,211 +433,251 @@
   }
 
   /* ---------------- Bilancio ---------------- */
+  // Regola: fee% a Gianluigi su ogni incasso → Benny rientra del capitale → resto 50/50
+  function ripartisci(incassato, feeP, cap) {
+    var fee = incassato * feeP / 100, dopo = incassato - fee;
+    var rimb = Math.min(dopo, cap), utile = Math.max(0, dopo - cap), half = utile / 2;
+    return {
+      incassato: incassato, fee: fee, rimb: rimb, utile: utile, half: half,
+      andrea: half, benny: rimb + half, gianluigi: fee,
+      breakEven: cap / (1 - feeP / 100), mancano: Math.max(0, cap / (1 - feeP / 100) - incassato),
+      pctCap: cap ? Math.min(100, 100 * rimb / cap) : 0, raggiunto: dopo >= cap
+    };
+  }
+
+  function bilancioVista(r, so, cap, feeP, prefisso) {
+    var A = esc(so.andrea || 'Socio A'), B = esc(so.benedetto || 'Socio B'), G = esc(so.gianluigi || 'Commerciale');
+    var id = function (k) { return prefisso + k; };
+    return '' +
+      // Fase 1
+      '<div class="lg-phase ' + (r.raggiunto ? 'ok' : 'on') + '" id="' + id('f1') + '">' +
+      '  <div class="lg-phase-h"><span class="lg-phase-n">1</span><div><b>' + B + ' rientra del capitale</b><small>Tutto l\'incassato (meno il ' + feeP + '% di ' + G + ') va a ' + B + ' fino a ' + eur(cap) + '</small></div>' +
+      '  <span class="lg-phase-v" data-v="rimb">' + eur(r.rimb) + ' <small>/ ' + eur(cap) + '</small></span></div>' +
+      '  <div class="lg-pbar"><i class="b" data-w="cap" style="width:' + r.pctCap + '%"></i></div>' +
+      '  <p class="lg-phase-s" data-v="f1s">' + (r.raggiunto ? '✓ Break-even raggiunto: capitale interamente restituito.' : 'Mancano <b>' + eur(r.mancano) + '</b> di incassi per arrivare al break-even' + (r.incassato > 0 ? ' (si raggiunge a ' + eur(r.breakEven) + ' incassati in totale).' : '.')) + '</p>' +
+      '</div>' +
+      // Fase 2
+      '<div class="lg-phase ' + (r.raggiunto ? 'on' : 'off') + '" id="' + id('f2') + '">' +
+      '  <div class="lg-phase-h"><span class="lg-phase-n">2</span><div><b>Utile diviso a metà</b><small>Dopo il break-even ogni euro (meno il ' + feeP + '%) va metà ad Andrea e metà a ' + B + '</small></div>' +
+      '  <span class="lg-phase-v" data-v="utile">' + eur(r.utile) + '</span></div>' +
+      '  <div class="lg-split2"><div class="a"><span>' + A + '</span><b data-v="ha">' + eur(r.half) + '</b></div><div class="b"><span>' + B + '</span><b data-v="hb">' + eur(r.half) + '</b></div></div>' +
+      '  <p class="lg-phase-s" data-v="f2s">' + (r.raggiunto ? 'In corso.' : 'Si sblocca dopo il break-even.') + '</p>' +
+      '</div>' +
+      // Totali
+      '<div class="lg-tot3">' +
+      '  <div class="a"><span>' + A + '</span><b data-v="ta">' + eur(r.andrea) + '</b><small>50% dell\'utile</small></div>' +
+      '  <div class="b"><span>' + B + '</span><b data-v="tb">' + eur(r.benny) + '</b><small data-v="tbs">' + eur(r.rimb) + ' capitale + ' + eur(r.half) + ' utile</small></div>' +
+      '  <div class="g"><span>' + G + '</span><b data-v="tg">' + eur(r.gianluigi) + '</b><small>' + feeP + '% di ' + '<span data-v="tgi">' + eur(r.incassato) + '</span></small></div>' +
+      '</div>';
+  }
+
   function bilancioHTML(paia, imp, incassato) {
     var b = imp.bilancio || { fee_percentuale: 5, soci: {} }, so = b.soci || {};
     var feeP = num(b.fee_percentuale), cap = num((imp.acquisto || {}).totale);
-    var fee = incassato * feeP / 100, dopo = incassato - fee, rimb = Math.min(dopo, cap), ut = Math.max(0, dopo - cap), half = ut / 2;
-    var rientro = cap ? 100 * rimb / cap : 0;
-    var A = esc(so.andrea || 'Socio A'), B = esc(so.benedetto || 'Socio B'), G = esc(so.gianluigi || 'Commerciale');
-    return '<section class="lg-section lg-bil"><header class="lg-bil-h"><div><h2>Bilancio e ripartizione</h2>' +
-      '<p class="lg-sub">Valori in euro. La colonna <i>Attuale</i> considera solo gli importi effettivamente incassati.</p></div>' +
-      '<div class="lg-bil-cap"><span>Rientro capitale</span><b>' + pct(rientro) + '</b><div class="lg-bar"><i style="width:' + Math.min(100, rientro) + '%"></i></div></div></header>' +
-      '<table class="lg-fin" id="sim"><thead><tr><th></th><th>Attuale</th><th>Proiezione<span class="lg-fin-in">' + paia.length + ' paia × <span class="lg-eur"><span>€</span><input id="sim-p" type="number" min="0" step="10" value="' + esc(store('lg-sim') || 200) + '" inputmode="numeric" aria-label="Prezzo medio di vendita a paio"></span></span></th></tr></thead>' +
-      '<tbody><tr class="sum"><th>Incassato dalle vendite</th><td>' + n2(incassato) + '</td><td data-k="tot"></td></tr>' +
-      '<tr><th>Fee commerciale ' + G + ' (' + feeP + '%)</th><td>(' + n2(fee) + ')</td><td data-k="fee"></td></tr>' +
-      '<tr><th>Rimborso capitale ' + B + '</th><td>(' + n2(rimb) + ')</td><td data-k="cap"></td></tr>' +
-      '<tr class="sum"><th>Utile da ripartire</th><td>' + n2(ut) + '</td><td data-k="ut"></td></tr></tbody>' +
-      '<tbody class="lg-fin-split"><tr class="grp"><th colspan="3">Ripartizione per socio</th></tr>' +
-      '<tr><th>' + A + "<small>50% dell'utile</small></th><td>" + n2(half) + '</td><td data-k="a"></td></tr>' +
-      '<tr><th>' + B + "<small>Rimborso capitale + 50% dell'utile</small></th><td>" + n2(rimb + half) + '</td><td data-k="b"></td></tr>' +
-      '<tr><th>' + G + '<small>Fee ' + feeP + "% sull'incassato</small></th><td>" + n2(fee) + '</td><td data-k="g"></td></tr>' +
-      '<tr class="total"><th>Totale</th><td>' + n2(incassato) + '</td><td data-k="tot2"></td></tr></tbody></table>' +
-      '<p class="lg-fin-note">Criterio di ripartizione: sull\'incassato si applica una fee del ' + feeP + '% a favore di ' + G + '; il residuo rimborsa in via prioritaria il capitale anticipato da ' + B + ' (' + eur(cap) + "); l'utile eccedente è ripartito in parti uguali tra " + A + ' e ' + B + '. Il capitale è interamente rimborsato al raggiungimento di ' + eur(cap / (1 - feeP / 100)) + ' di incassato.</p></section>';
+    var r = ripartisci(incassato, feeP, cap);
+    return '<section class="lg-section lg-bil2">' +
+      '<header class="lg-bil2-h"><h2>Bilancio</h2><p class="lg-sub">Incassato finora: <b>' + eur(incassato) + '</b>. Si aggiorna da solo a ogni vendita incassata.</p></header>' +
+      '<div class="lg-bil2-now">' + bilancioVista(r, so, cap, feeP, 'now-') + '</div>' +
+      '<div class="lg-sim2"><div class="lg-sim2-h"><h3>Simulazione</h3><label>Se vendo tutte le ' + paia.length + ' paia a una media di ' +
+      '<span class="lg-eur"><span>€</span><input id="sim-p" type="number" min="0" step="10" value="' + esc(store('lg-sim') || 200) + '" inputmode="numeric" aria-label="Prezzo medio a paio"></span> a paio' +
+      ' <span class="lg-sim2-tot">= <b id="sim-tot"></b> incassati</span></label></div>' +
+      '<div id="sim-box">' + bilancioVista(r, so, cap, feeP, 'sim-') + '</div></div>' +
+      '</section>';
   }
+
   function bindBilancio(n, imp) {
-    var box = $('#sim'), inp = $('#sim-p'); if (!box) return;
-    var b = imp.bilancio || {}, feeP = num(b.fee_percentuale), cap = num((imp.acquisto || {}).totale);
-    function set(k, v) { $('[data-k=' + k + ']', box).textContent = v; }
+    var inp = $('#sim-p'), box = $('#sim-box'); if (!inp || !box) return;
+    var b = imp.bilancio || {}, so = b.soci || {}, feeP = num(b.fee_percentuale), cap = num((imp.acquisto || {}).totale);
     function calcSim() {
-      var p = Math.max(0, num(inp.value)), tot = n * p, fee = tot * feeP / 100, dopo = tot - fee, rimb = Math.min(dopo, cap), half = Math.max(0, dopo - cap) / 2;
-      set('tot', n2(tot)); set('fee', '(' + n2(fee) + ')'); set('cap', '(' + n2(rimb) + ')'); set('ut', n2(half * 2));
-      set('a', n2(half)); set('b', n2(rimb + half)); set('g', n2(fee)); set('tot2', n2(tot));
+      var tot = n * Math.max(0, num(inp.value));
+      $('#sim-tot').textContent = eur(tot);
+      box.innerHTML = bilancioVista(ripartisci(tot, feeP, cap), so, cap, feeP, 'sim-');
       store('lg-sim', inp.value);
     }
     inp.addEventListener('input', calcSim); calcSim();
   }
 
   /* =====================================================================
-     DETTAGLIO
+     DETTAGLIO — minimal, guidato passo per passo
      ===================================================================== */
   function kv(label, value, cls) {
     if (value === '' || value == null) return '';
     return '<div' + (cls ? ' class="' + cls + '"' : '') + '><dt>' + label + '</dt><dd>' + value + '</dd></div>';
   }
 
+  // Cosa si compila per arrivare a ogni stato
+  var PASSI = {
+    venduto: {
+      titolo: 'Vendita',
+      quando: 'Quando hai trovato un acquirente e vi siete accordati sul prezzo.',
+      campi: [
+        ['vendita', 'Prezzo di vendita (€)', 'number', { req: true }],
+        ['acquirente', 'Acquirente', 'text'],
+        ['contatto', 'Contatto', 'text', { ph: '@instagram, telefono…' }],
+        ['canale', 'Dove l\'hai venduta', 'text', { list: 'dl-canali' }],
+        ['commissioni', 'Commissioni piattaforma (€)', 'number', { ph: '0' }],
+        ['metodo_pagamento', 'Metodo di pagamento', 'text', { list: 'dl-pag' }],
+        ['data_vendita', 'Data vendita', 'date', { def: 'oggi' }],
+        ['pagamento_ricevuto', 'Ho già ricevuto il pagamento', 'checkbox']
+      ],
+      file: 'lo screenshot dell\'accordo o della chat'
+    },
+    spedito: {
+      titolo: 'Spedizione',
+      quando: 'Quando la scarpa parte (o la consegni a mano).',
+      campi: [
+        ['modalita_consegna', 'Come la consegni', 'select', { options: ['Spedizione', 'A mano'] }],
+        ['corriere', 'Corriere', 'text', { list: 'dl-corr', sped: true }],
+        ['tracking', 'Codice tracking', 'text', { sped: true }],
+        ['tracking_url', 'Link tracking', 'url', { ph: 'https://…', sped: true }],
+        ['costo_spedizione', 'Spedizione pagata da te (€)', 'number', { ph: '0', sped: true }],
+        ['indirizzo', 'Indirizzo', 'text', { sped: true }],
+        ['data_spedizione', 'Data', 'date', { def: 'oggi' }]
+      ],
+      file: 'la ricevuta o l\'etichetta di spedizione'
+    },
+    concluso: {
+      titolo: 'Chiusura',
+      quando: 'Quando l\'acquirente l\'ha ricevuta e i soldi sono arrivati.',
+      campi: [
+        ['pagamento_ricevuto', 'Pagamento ricevuto', 'checkbox', { req: true }],
+        ['data_pagamento', 'Data pagamento', 'date', { def: 'oggi' }],
+        ['data_consegna', 'Data consegna', 'date', { def: 'oggi' }],
+        ['data_conclusione', 'Data chiusura', 'date', { def: 'oggi' }]
+      ],
+      file: 'la prova del pagamento'
+    }
+  };
+
+  function campo(c, p, prefill) {
+    var name = c[0], label = c[1], type = c[2], o = c[3] || {};
+    var v = p[name];
+    if ((v == null || v === '') && prefill && o.def === 'oggi') v = oggi();
+    if (v == null) v = '';
+    var id = 'f-' + name, cls = 'lg-f' + (o.sped ? ' sped' : '') + (o.req ? ' req' : '');
+    if (type === 'checkbox') return '<label class="lg-f lg-f-check' + (o.req ? ' req' : '') + '"><input type="checkbox" id="' + id + '" name="' + name + '"' + (v ? ' checked' : '') + '><span>' + label + '</span></label>';
+    var input;
+    if (type === 'select') input = '<select id="' + id + '" name="' + name + '">' + o.options.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>';
+    else input = '<input id="' + id + '" name="' + name + '" type="' + type + '" value="' + esc(v) + '"' + (o.list ? ' list="' + o.list + '"' : '') + (type === 'number' ? ' step="0.01" min="0" inputmode="decimal"' : '') + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + '>';
+    return '<label class="' + cls + '" for="' + id + '"><span>' + label + (o.req ? ' <i>*</i>' : '') + '</span>' + input + '</label>';
+  }
+
+  var DATALISTS =
+    '<datalist id="dl-canali"><option>Vinted</option><option>Instagram</option><option>WhatsApp</option><option>Subito</option><option>Di persona</option></datalist>' +
+    '<datalist id="dl-pag"><option>PayPal</option><option>Bonifico</option><option>Contanti</option><option>Satispay</option><option>Revolut</option><option>Vinted</option></datalist>' +
+    '<datalist id="dl-corr"><option>BRT</option><option>GLS</option><option>Poste Italiane</option><option>SDA</option><option>InPost</option><option>DHL</option><option>UPS</option></datalist>';
+
+  function formPasso(key, p, modo) {
+    // modo: 'avanza' (prossimo passo) | 'modifica' (passo già fatto)
+    var P = PASSI[key];
+    return '<form class="lg-stepform" data-passo="' + key + '" data-modo="' + modo + '" novalidate>' +
+      '<div class="lg-fgrid">' + P.campi.map(function (c) { return campo(c, p, modo === 'avanza'); }).join('') + '</div>' +
+      '<p class="lg-form-err" hidden></p>' +
+      '<div class="lg-form-foot">' +
+      (modo === 'avanza'
+        ? '<button type="submit" class="lg-btn primary big">Salva e segna come ' + LABEL[key].toLowerCase() + ' →</button><button type="button" class="lg-link" data-act="solo-salva">Salva senza cambiare stato</button>'
+        : '<button type="submit" class="lg-btn primary">Salva</button><button type="button" class="lg-link" data-act="annulla">Annulla</button>') +
+      '</div></form>';
+  }
+
+  function riepilogoPasso(key, p, c) {
+    var r = '';
+    if (key === 'venduto') {
+      r = kv('Prezzo', p.vendita ? '<b>' + eur(p.vendita) + '</b>' : '') + kv('Acquirente', esc(p.acquirente || '')) + kv('Contatto', esc(p.contatto || '')) +
+        kv('Canale', esc(p.canale || '')) + (c.commissioni ? kv('Commissioni', '−' + eur(c.commissioni)) : '') + kv('Pagamento', esc(p.metodo_pagamento || '')) +
+        kv('Data', dataIt(p.data_vendita));
+    } else if (key === 'spedito') {
+      var tr = p.tracking ? (p.tracking_url ? '<a href="' + esc(p.tracking_url) + '" target="_blank" rel="noopener">' + esc(p.tracking) + ' ↗</a>' : esc(p.tracking)) : '';
+      r = kv('Modalità', esc(p.modalita_consegna || '')) + kv('Corriere', esc(p.corriere || '')) + kv('Tracking', tr ? '<span class="mono">' + tr + '</span>' : '') +
+        (c.spedVendita ? kv('Costo spedizione', '−' + eur(c.spedVendita)) : '') + kv('Indirizzo', esc(p.indirizzo || '')) + kv('Data', dataIt(p.data_spedizione));
+    } else if (key === 'concluso') {
+      r = kv('Pagamento', c.incassato ? '<span class="lg-ok">✓ Ricevuto</span>' : '') + kv('Pagata il', dataIt(p.data_pagamento)) +
+        kv('Consegnata il', dataIt(p.data_consegna)) + kv('Chiusa il', dataIt(p.data_conclusione));
+    }
+    return r ? '<dl class="lg-kv sm">' + r + '</dl>' : '<p class="lg-empty">Nessun dato inserito.</p>';
+  }
+
   function renderDetail(p) {
     var paia = S.paia, imp = S.imp, c = calc(p, paia, imp), acq = imp.acquisto || {};
     var idx = paia.indexOf(p), prev = paia[idx - 1], next = paia[idx + 1];
     var cur = Math.max(0, ORDER.indexOf(p.stato));
-    var nextStato = STATI[cur + 1];
+    var nextKey = (STATI[cur + 1] || {}).key;
 
     var h = topbar();
-    h += '<div class="lg-detail"><nav class="lg-nav"><a href="#/" class="lg-back">← Tutte le paia</a><span class="lg-prevnext">' +
+    h += '<div class="lg-detail lg-min"><nav class="lg-nav"><a href="#/" class="lg-back">← Tutte le paia</a><span class="lg-prevnext">' +
       (prev ? '<a href="#/' + prev.id + '" title="' + esc(prev.nome) + ' (tasto ←)">‹ ' + prev.id + '</a>' : '') +
       '<span class="lg-pos">' + (idx + 1) + ' / ' + paia.length + '</span>' +
       (next ? '<a href="#/' + next.id + '" title="' + esc(next.nome) + ' (tasto →)">' + next.id + ' ›</a>' : '') + '</span></nav>';
 
-    // Testata
-    h += '<section class="lg-hero"><div class="lg-ph lg-hero-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" width="1200" height="900"></div><div class="lg-hero-b">' +
-      '<div class="lg-hero-top"><span class="lg-id big">' + esc(p.id) + '</span><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(LABEL[p.stato]) + '</span></div>' +
-      '<h1>' + esc(p.nome) + '</h1><div class="lg-tags"><span class="lg-tag big">Taglia <b>' + esc(p.taglia) + '</b></span><span class="lg-tag">' + esc(p.sesso) + '</span><span class="lg-tag mono">' + esc(p.codice) + '</span></div>' +
-      '<div class="lg-nums"><div><span>Costo reale</span><b>' + eur(c.costo) + '</b></div><div><span>Prezzo di listino</span><b>' + eur(p.listino) + '</b></div>' +
+    // Intestazione compatta
+    h += '<header class="lg-mhead"><div class="lg-ph lg-mhead-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" width="1200" height="900"></div>' +
+      '<div class="lg-mhead-b"><div class="lg-hero-top"><span class="lg-id big">' + esc(p.id) + '</span><span class="lg-status s-' + esc(p.stato) + '"><i class="lg-dot"></i>' + esc(LABEL[p.stato]) + '</span></div>' +
+      '<h1>' + esc(p.nome) + '</h1><p class="lg-mhead-sub">' + esc(p.sesso) + ' · Taglia <b>' + esc(p.taglia) + '</b></p>' +
+      '<dl class="lg-mnums"><div><dt>Costo</dt><dd>' + eur(c.costo) + '</dd></div><div><dt>Listino</dt><dd>' + eur(p.listino) + '</dd></div>' +
       (p.vendita
-        ? '<div><span>Venduta a</span><b>' + eur(p.vendita) + '</b></div><div class="hl"><span>Guadagno netto</span><b class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + (c.margine > 0 ? '+' : '') + eur(c.margine) + '</b></div>'
-        : '<div><span>Venduta a</span><b class="lg-na">—</b></div><div class="hl"><span>Guadagno max (a listino)</span><b class="pos">+' + eur(num(p.listino) - c.costo) + '</b></div>') +
-      '</div><div class="lg-actions">' +
-      (nextStato ? '<button type="button" class="lg-btn primary" id="act-next">Segna come ' + nextStato.label.toLowerCase() + ' →</button>' : '') +
-      '<button type="button" class="lg-btn" id="act-edit">Modifica dati</button>' +
-      (c.venduta && !c.incassato ? '<button type="button" class="lg-btn" id="act-paid">Pagamento ricevuto ✓</button>' : '') +
-      '</div></div></section>';
+        ? '<div><dt>Venduta a</dt><dd>' + eur(p.vendita) + '</dd></div><div><dt>Guadagno</dt><dd class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + (c.margine > 0 ? '+' : '') + eur(c.margine) + '</dd></div>'
+        : '') + '</dl></div></header>';
 
-    // Stepper
-    h += '<section class="lg-box"><h2>A che punto è</h2><ol class="lg-steps">';
+    // Avanzamento
+    h += '<ol class="lg-steps four">';
     STATI.forEach(function (s, i) {
       var date = s.key === 'disponibile' ? acq.data : p[s.campo];
-      h += '<li class="s-' + s.key + ' ' + (i < cur ? 'done' : i === cur ? 'now' : '') + '"><button type="button" class="lg-step" data-stato="' + s.key + '" title="Imposta stato: ' + s.label + '"><i>' + (i < cur ? '✓' : i + 1) + '</i><b>' + s.label + '</b><small>' + (date ? dataIt(date) : i <= cur ? 'senza data' : '&nbsp;') + '</small></button></li>';
+      h += '<li class="s-' + s.key + ' ' + (i < cur ? 'done' : i === cur ? 'now' : '') + '"><button type="button" class="lg-step" data-stato="' + s.key + '" title="Imposta stato: ' + s.label + '"><i>' + (i < cur ? '✓' : i + 1) + '</i><b>' + s.label + '</b><small>' + (date && i <= cur ? dataIt(date) : '&nbsp;') + '</small></button></li>';
     });
-    h += '</ol><p class="lg-stepnote">Stato attuale: <b>' + esc(LABEL[p.stato]) + '</b> — ' + esc((STATI[cur] || {}).desc || '') + '. Clicca un passaggio per impostarlo.</p></section>';
+    h += '</ol>';
 
-    // Edit form (nascosto) + riquadri
-    h += '<div id="lg-editwrap" hidden>' + editForm(p) + '</div>';
-    h += '<div id="lg-view">' + detailBoxes(p, c, acq) + '</div>';
-
-    // Allegati
-    h += '<section class="lg-box" id="lg-att"><div class="lg-box-h"><h2>Screenshot e documenti <small id="att-n"></small></h2>' +
-      '<label class="lg-btn"><input type="file" id="att-file" accept="image/*,application/pdf" multiple hidden>+ Carica file</label></div>' +
-      '<div class="lg-drop" id="att-drop"><div class="lg-shots" id="att-list"><p class="lg-empty">Caricamento…</p></div>' +
-      '<p class="lg-drop-hint">Trascina qui i file, oppure incolla uno screenshot con <kbd>⌘V</kbd> / <kbd>Ctrl+V</kbd>.</p></div></section>';
-
-    // Note + Diario
-    h += '<div class="lg-cols"><section class="lg-box"><h2>Note</h2>' +
-      (p.note ? '<div class="lg-notes">' + esc(p.note).replace(/\n/g, '<br>') + '</div>' : '<p class="lg-empty">Nessuna nota. Aggiungila da "Modifica dati".</p>') + '</section>' +
-      '<section class="lg-box"><h2>Diario</h2><ul class="lg-log">' +
-      (p.storico && p.storico.length ? p.storico.slice().reverse().map(function (e) { return '<li><time>' + esc(dataIt(e.data)) + '</time><span>' + esc(e.evento) + '</span></li>'; }).join('') : '<li class="lg-empty">Nessun evento.</li>') +
-      '</ul><form class="lg-logadd" id="log-add"><input type="date" name="d" value="' + oggi() + '" aria-label="Data"><input type="text" name="t" placeholder="Aggiungi un evento…" aria-label="Evento" required><button class="lg-btn">Aggiungi</button></form></section></div>';
-
-    // Stesso modello
-    var same = paia.filter(function (x) { return x.codice === p.codice; });
-    if (same.length > 1) {
-      h += '<section class="lg-box"><h2>Stesso modello, altre paia</h2><div class="lg-pills">' +
-        same.slice().sort(function (a, b) { return num(a.taglia) - num(b.taglia); }).map(function (x) {
-          return '<a href="#/' + x.id + '" class="lg-pill wide s-' + esc(x.stato) + (x.id === p.id ? ' me' : '') + '" title="' + esc(LABEL[x.stato]) + '">' + x.id + ' · Tg ' + esc(x.taglia) + '</a>';
-        }).join('') + '</div></section>';
+    // Prossimo passo
+    if (nextKey) {
+      var P = PASSI[nextKey];
+      h += '<section class="lg-next s-' + nextKey + '"><div class="lg-next-h"><span class="lg-next-tag">Prossimo passo</span><h2>' + (cur + 2) + '. ' + LABEL[nextKey] + '</h2>' +
+        '<p>' + esc(P.quando) + ' Compila i campi e premi il pulsante.</p></div>' + formPasso(nextKey, p, 'avanza') +
+        (nextKey === 'venduto' ? '<details class="lg-ad"><summary>Testo per l\'annuncio</summary><textarea id="ad" rows="5">Golden Goose – ' + esc(p.nome) + '\nTaglia ' + esc(p.taglia) + ' EU (' + esc(p.sesso) + ')\nNuove, mai indossate, con scatola originale.\nCodice articolo: ' + esc(p.codice) + '\nPrezzo di listino: ' + eur(p.listino) + '</textarea><button type="button" class="lg-btn" id="copy-ad">Copia testo</button></details>' : '') +
+        '</section>';
+    } else {
+      h += '<section class="lg-next done"><div class="lg-next-h"><span class="lg-next-tag">Completato</span><h2>Pratica chiusa</h2>' +
+        '<p>Venduta a ' + eur(p.vendita) + ' · guadagno netto <b class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + eur(c.margine) + '</b>.</p></div></section>';
     }
 
-    // Annuncio
-    h += '<section class="lg-box"><h2>Testo per l\'annuncio</h2><textarea id="ad" rows="5">Golden Goose – ' + esc(p.nome) + '\nTaglia ' + esc(p.taglia) + ' EU (' + esc(p.sesso) + ')\nNuove, mai indossate, con scatola originale.\nCodice articolo: ' + esc(p.codice) + '\nPrezzo di listino: ' + eur(p.listino) + '</textarea>' +
-      '<button type="button" class="lg-btn primary" id="copy-ad">Copia testo</button></section></div>';
+    // Passi completati
+    var fatti = STATI.slice(1, cur + 1);
+    if (fatti.length) {
+      h += '<section class="lg-done"><h3>Passi completati</h3>';
+      fatti.forEach(function (s, i) {
+        h += '<div class="lg-done-i s-' + s.key + '" data-passo="' + s.key + '"><div class="lg-done-h"><span><i class="lg-dot"></i><b>' + (i + 2) + '. ' + s.label + '</b></span><button type="button" class="lg-link" data-edit="' + s.key + '">Modifica</button></div>' +
+          '<div class="lg-done-v">' + riepilogoPasso(s.key, p, c) + '</div><div class="lg-done-f" hidden>' + formPasso(s.key, p, 'modifica') + '</div></div>';
+      });
+      h += '</section>';
+    }
 
-    h += '<dialog id="lb" class="lg-lb"><img alt=""><form method="dialog"><button aria-label="Chiudi">✕</button></form></dialog>';
+    // File
+    var fileHint = nextKey ? PASSI[nextKey].file : 'qualsiasi documento utile';
+    h += '<section class="lg-files" id="lg-att"><div class="lg-box-h"><h3>File <small id="att-n"></small></h3>' +
+      '<label class="lg-btn"><input type="file" id="att-file" accept="image/*,application/pdf" multiple hidden>+ Aggiungi file</label></div>' +
+      '<div class="lg-drop" id="att-drop"><div class="lg-shots" id="att-list"><p class="lg-empty">Caricamento…</p></div>' +
+      '<p class="lg-drop-hint">' + (nextKey ? 'In questo passo: carica ' + esc(fileHint) + '.' : 'Puoi caricare qualsiasi documento utile.') + ' Trascina qui o incolla con <kbd>⌘V</kbd>.</p></div></section>';
+
+    // Altro (chiuso)
+    h += '<details class="lg-more"><summary>Note e diario' + (p.storico && p.storico.length ? ' · ' + p.storico.length : '') + '</summary>' +
+      '<form class="lg-note-f" id="note-f"><label class="lg-f wide"><span>Note</span><textarea name="note" rows="3">' + esc(p.note || '') + '</textarea></label><button class="lg-btn">Salva nota</button></form>' +
+      '<ul class="lg-log">' + (p.storico && p.storico.length ? p.storico.slice().reverse().map(function (e) { return '<li><time>' + esc(dataIt(e.data)) + '</time><span>' + esc(e.evento) + '</span></li>'; }).join('') : '<li class="lg-empty">Nessun evento.</li>') + '</ul>' +
+      '<form class="lg-logadd" id="log-add"><input type="date" name="d" value="' + oggi() + '" aria-label="Data"><input type="text" name="t" placeholder="Aggiungi un evento…" aria-label="Evento" required><button class="lg-btn">Aggiungi</button></form></details>';
+
+    h += '<details class="lg-more"><summary>Dettagli prodotto e costo</summary><dl class="lg-kv sm">' +
+      kv('Codice articolo', '<span class="mono">' + esc(p.codice) + '</span>') + kv('Condizione', esc(p.condizione || 'Nuova')) + kv('Dove si trova', esc(p.posizione || '')) +
+      kv('Prezzo pagato', eur(p.pagato) + ' <small>(−' + pct(c.sconto) + ' sul listino)</small>') +
+      kv('Quota spedizione acquisto', eur(c.quota) + ' <small>(' + eur(acq.spedizione) + ' ÷ ' + paia.length + ')</small>') +
+      kv('Costo reale', '<b>' + eur(c.costo) + '</b>', 'tot') + kv('Acquistata il', dataIt(acq.data)) + '</dl>' +
+      '<details class="lg-sub-more"><summary>Modifica dati prodotto</summary><form id="prod-f" class="lg-stepform"><div class="lg-fgrid">' +
+      campo(['nome', 'Modello', 'text'], p) + campo(['codice', 'Codice articolo', 'text'], p) + campo(['sesso', 'Uomo / Donna', 'select', { options: ['Uomo', 'Donna'] }], p) +
+      campo(['taglia', 'Taglia', 'number'], p) + campo(['listino', 'Listino (€)', 'number'], p) + campo(['pagato', 'Pagato (€)', 'number'], p) +
+      campo(['condizione', 'Condizione', 'text', { ph: 'Nuova' }], p) + campo(['posizione', 'Dove si trova', 'text', { ph: 'Es. Scatola 3' }], p) +
+      '</div><div class="lg-form-foot"><button class="lg-btn primary">Salva</button></div></form></details></details>';
+
+    h += DATALISTS + '</div><dialog id="lb" class="lg-lb"><img alt=""><form method="dialog"><button aria-label="Chiudi">✕</button></form></dialog>';
     root.innerHTML = h;
     bindTopbar();
     bindDetail(p, prev, next);
     loadAllegati(p.id);
-  }
-
-  function detailBoxes(p, c, acq) {
-    var hasV = p.acquirente || p.contatto || p.canale || p.vendita || c.venduta;
-    var hasS = p.modalita_consegna || p.corriere || p.tracking || p.data_spedizione || p.data_consegna || p.indirizzo;
-    var h = '<div class="lg-cols">';
-    h += '<section class="lg-box"><h2>Vendita</h2>';
-    if (hasV) {
-      h += '<dl class="lg-kv">' + kv('Acquirente', p.acquirente ? '<b>' + esc(p.acquirente) + '</b>' : '') + kv('Contatto', esc(p.contatto || '')) + kv('Canale', esc(p.canale || ''));
-      if (p.vendita) {
-        h += kv('Prezzo di vendita', '<b>' + eur(p.vendita) + '</b>') +
-          (c.commissioni ? kv('Commissioni', '−' + eur(c.commissioni)) : '') +
-          (c.spedVendita ? kv('Spedizione pagata da te', '−' + eur(c.spedVendita)) : '') +
-          (c.commissioni || c.spedVendita ? kv('Netto incassato', eur(c.netto)) : '') +
-          kv('Costo reale', '−' + eur(c.costo)) +
-          kv('Guadagno netto', '<b class="' + (c.margine < 0 ? 'neg' : 'pos') + '">' + eur(c.margine) + '</b> <small>(' + pct(100 * c.margine / c.costo) + ' sul costo)</small>', 'tot');
-      } else h += kv('Prezzo di vendita', '<span class="lg-wait">Da definire</span>');
-      h += '</dl>';
-    } else {
-      h += '<p class="lg-empty-big">Non ancora venduta.</p><p class="lg-empty">Al prezzo di listino guadagneresti fino a <b class="pos">+' + eur(num(p.listino) - c.costo) + '</b>.</p>';
-    }
-    h += '</section>';
-
-    h += '<section class="lg-box"><h2>Pagamento e date</h2><dl class="lg-kv">' +
-      (c.venduta ? kv('Pagamento', c.incassato ? '<span class="lg-ok">✓ Ricevuto</span>' : '<span class="lg-wait">In attesa</span>') : '') +
-      kv('Metodo', esc(p.metodo_pagamento || '')) + kv('Pagata il', dataIt(p.data_pagamento)) +
-      kv('Acquistata il', dataIt(acq.data)) + kv('Riservata il', dataIt(p.data_riservato)) + kv('Venduta il', dataIt(p.data_vendita)) +
-      kv('Spedita il', dataIt(p.data_spedizione)) + kv('Consegnata il', dataIt(p.data_consegna)) + kv('Conclusa il', dataIt(p.data_conclusione)) +
-      kv('Dove si trova', esc(p.posizione || '')) + '</dl></section>';
-
-    h += '<section class="lg-box"><h2>Spedizione al cliente</h2>';
-    if (hasS) {
-      var tr = p.tracking ? (p.tracking_url ? '<a href="' + esc(p.tracking_url) + '" target="_blank" rel="noopener">' + esc(p.tracking) + ' ↗</a>' : esc(p.tracking)) : '';
-      h += '<dl class="lg-kv">' + kv('Modalità', esc(p.modalita_consegna || '')) + kv('Corriere', p.corriere ? '<b>' + esc(p.corriere) + '</b>' : '') +
-        kv('Tracking', tr ? '<span class="mono">' + tr + '</span>' : '') + kv('Spedita il', dataIt(p.data_spedizione)) + kv('Consegnata il', dataIt(p.data_consegna)) + kv('Indirizzo', esc(p.indirizzo || '')) + '</dl>';
-    } else h += '<p class="lg-empty-big">Non ancora spedita.</p><p class="lg-empty">Quando la spedisci aggiungi corriere, tracking e date da "Modifica dati".</p>';
-    h += '</section>';
-
-    h += '<section class="lg-box"><h2>Prodotto e costo</h2><dl class="lg-kv">' +
-      kv('Codice articolo', '<span class="mono">' + esc(p.codice) + '</span>') + kv('Uomo / Donna', esc(p.sesso)) + kv('Taglia (EU)', '<b>' + esc(p.taglia) + '</b>') +
-      kv('Condizione', esc(p.condizione || 'Nuova')) + kv('Prezzo di listino', eur(p.listino)) +
-      kv('Prezzo pagato', eur(p.pagato) + ' <small>(−' + pct(c.sconto) + ')</small>') +
-      kv('+ Quota spedizione', eur(c.quota) + ' <small>(' + eur(acq.spedizione) + ' ÷ ' + S.paia.length + ')</small>') +
-      kv('= Costo reale', '<b>' + eur(c.costo) + '</b>', 'tot') + '</dl></section></div>';
-    return h;
-  }
-
-  /* ---------------- Form di modifica ---------------- */
-  var F = function (name, label, type, p, extra) {
-    var v = p[name] == null ? '' : p[name];
-    extra = extra || {};
-    var id = 'f-' + name;
-    var input;
-    if (type === 'select') input = '<select id="' + id + '" name="' + name + '">' + extra.options.map(function (o) { var val = o.v != null ? o.v : o; var lab = o.l || o; return '<option value="' + esc(val) + '"' + (String(val) === String(v) ? ' selected' : '') + '>' + esc(lab) + '</option>'; }).join('') + '</select>';
-    else if (type === 'textarea') input = '<textarea id="' + id + '" name="' + name + '" rows="3">' + esc(v) + '</textarea>';
-    else if (type === 'checkbox') return '<label class="lg-f lg-f-check"><input type="checkbox" id="' + id + '" name="' + name + '"' + (v ? ' checked' : '') + '><span>' + label + '</span></label>';
-    else input = '<input id="' + id + '" name="' + name + '" type="' + type + '" value="' + esc(v) + '"' + (extra.list ? ' list="' + extra.list + '"' : '') + (type === 'number' ? ' step="0.01" min="0" inputmode="decimal"' : '') + (extra.ph ? ' placeholder="' + esc(extra.ph) + '"' : '') + '>';
-    return '<label class="lg-f' + (extra.wide ? ' wide' : '') + '" for="' + id + '"><span>' + label + '</span>' + input + '</label>';
-  };
-
-  function editForm(p) {
-    return '<form class="lg-box lg-edit" id="lg-edit" novalidate>' +
-      '<div class="lg-box-h"><h2>Modifica ' + esc(p.id) + '</h2><span><button type="button" class="lg-btn" id="ed-cancel">Annulla</button> <button type="submit" class="lg-btn primary">Salva</button></span></div>' +
-      '<fieldset><legend>Stato</legend><div class="lg-fgrid">' +
-      F('stato', 'Stato', 'select', p, { options: STATI.map(function (s) { return { v: s.key, l: s.label }; }) }) +
-      F('posizione', 'Dove si trova', 'text', p, { ph: 'Es. Scatola 3, armadio' }) +
-      F('condizione', 'Condizione', 'text', p, { ph: 'Nuova' }) +
-      '</div></fieldset>' +
-      '<fieldset><legend>Vendita</legend><div class="lg-fgrid">' +
-      F('acquirente', 'Acquirente', 'text', p) + F('contatto', 'Contatto', 'text', p, { ph: '@instagram, telefono…' }) +
-      F('canale', 'Canale', 'text', p, { list: 'dl-canali' }) +
-      F('vendita', 'Prezzo di vendita (€)', 'number', p) + F('commissioni', 'Commissioni piattaforma (€)', 'number', p) +
-      F('metodo_pagamento', 'Metodo di pagamento', 'text', p, { list: 'dl-pag' }) +
-      F('data_riservato', 'Riservata il', 'date', p) + F('data_vendita', 'Venduta il', 'date', p) + F('data_pagamento', 'Pagata il', 'date', p) +
-      F('pagamento_ricevuto', 'Pagamento ricevuto', 'checkbox', p) +
-      '</div></fieldset>' +
-      '<fieldset><legend>Spedizione al cliente</legend><div class="lg-fgrid">' +
-      F('modalita_consegna', 'Modalità', 'select', p, { options: ['', 'Spedizione', 'A mano'] }) +
-      F('corriere', 'Corriere', 'text', p, { list: 'dl-corr' }) + F('tracking', 'Codice tracking', 'text', p) +
-      F('tracking_url', 'Link tracking', 'url', p, { ph: 'https://…' }) + F('costo_spedizione', 'Spedizione pagata da te (€)', 'number', p) +
-      F('data_spedizione', 'Spedita il', 'date', p) + F('data_consegna', 'Consegnata il', 'date', p) + F('data_conclusione', 'Conclusa il', 'date', p) +
-      F('indirizzo', 'Indirizzo', 'text', p, { wide: true }) +
-      '</div></fieldset>' +
-      '<fieldset><legend>Note</legend>' + F('note', 'Note', 'textarea', p, { wide: true }) + '</fieldset>' +
-      '<details><summary>Dati prodotto (di solito non serve toccarli)</summary><div class="lg-fgrid">' +
-      F('nome', 'Modello', 'text', p, { wide: true }) + F('codice', 'Codice articolo', 'text', p) +
-      F('sesso', 'Uomo / Donna', 'select', p, { options: ['Uomo', 'Donna'] }) + F('taglia', 'Taglia', 'number', p) +
-      F('listino', 'Prezzo di listino (€)', 'number', p) + F('pagato', 'Prezzo pagato (€)', 'number', p) +
-      '</div></details>' +
-      '<datalist id="dl-canali"><option>Vinted</option><option>Instagram</option><option>WhatsApp</option><option>Subito</option><option>Di persona</option></datalist>' +
-      '<datalist id="dl-pag"><option>PayPal</option><option>Bonifico</option><option>Contanti</option><option>Satispay</option><option>Revolut</option><option>Vinted</option></datalist>' +
-      '<datalist id="dl-corr"><option>BRT</option><option>GLS</option><option>Poste Italiane</option><option>SDA</option><option>InPost</option><option>DHL</option><option>UPS</option></datalist>' +
-      '<div class="lg-edit-foot"><button type="button" class="lg-btn" id="ed-cancel2">Annulla</button> <button type="submit" class="lg-btn primary">Salva modifiche</button></div>' +
-      '</form>';
   }
 
   var NUMERIC = ['vendita', 'commissioni', 'costo_spedizione', 'taglia', 'listino', 'pagato'];
@@ -652,51 +691,81 @@
       else { v = el.value.trim(); if (NUMERIC.indexOf(el.name) !== -1 && v !== '') v = num(v.replace(',', '.')); }
       if (v === '' || v === false) delete d[el.name]; else d[el.name] = v;
     });
+    if (d.modalita_consegna === 'A mano') ['corriere', 'tracking', 'tracking_url', 'costo_spedizione', 'indirizzo'].forEach(function (k) { delete d[k]; });
     return d;
   }
 
+  function logModifiche(p, d) {
+    if (d.vendita && d.vendita !== p.vendita) addStorico(d, 'Prezzo di vendita: ' + eur(d.vendita));
+    if (d.acquirente && d.acquirente !== p.acquirente) addStorico(d, 'Acquirente: ' + d.acquirente);
+    if (d.tracking && d.tracking !== p.tracking) addStorico(d, 'Tracking: ' + d.tracking);
+    if (d.pagamento_ricevuto && !p.pagamento_ricevuto) { addStorico(d, 'Pagamento ricevuto'); if (!d.data_pagamento) d.data_pagamento = oggi(); }
+  }
+
+  function setEditing(on) { S.editing = on; if (!on && S.pendingRefresh) { S.pendingRefresh = false; rerender(); } showSyncBadge(); }
+
   function bindDetail(p, prev, next) {
-    var view = $('#lg-view'), wrap = $('#lg-editwrap'), form = $('#lg-edit');
-    function openEdit() { S.editing = true; wrap.hidden = false; view.hidden = true; wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-    function closeEdit() { S.editing = false; if (S.pendingRefresh) { S.pendingRefresh = false; rerender(); } else { wrap.hidden = true; view.hidden = false; } showSyncBadge(); }
-    $('#act-edit').onclick = openEdit;
-    $('#ed-cancel').onclick = closeEdit; $('#ed-cancel2').onclick = closeEdit;
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var d = readForm(form, p);
-      if (d.stato !== p.stato) {
-        addStorico(d, 'Stato: ' + LABEL[p.stato] + ' → ' + LABEL[d.stato]);
-        var campo = (STATI[ORDER.indexOf(d.stato)] || {}).campo;
-        if (campo && !d[campo]) d[campo] = oggi();
-      }
-      if (d.vendita && d.vendita !== p.vendita) addStorico(d, 'Prezzo di vendita: ' + eur(d.vendita));
-      if (d.pagamento_ricevuto && !p.pagamento_ricevuto) { addStorico(d, 'Pagamento ricevuto'); if (!d.data_pagamento) d.data_pagamento = oggi(); }
-      $$('button[type=submit]', form).forEach(function (b) { b.disabled = true; b.textContent = 'Salvataggio…'; });
-      savePaio(d, 'Modifiche salvate').catch(function () { $$('button[type=submit]', form).forEach(function (b) { b.disabled = false; b.textContent = 'Salva'; }); });
+    // mostra/nascondi campi di spedizione se "A mano"
+    $$('select[name=modalita_consegna]').forEach(function (sel) {
+      var form = sel.form;
+      function upd() { $$('.lg-f.sped', form).forEach(function (l) { l.hidden = sel.value === 'A mano'; }); }
+      sel.addEventListener('change', upd); upd();
     });
 
-    function setStato(k) {
-      if (k === p.stato) return;
-      var d = clone(p);
-      var campo = (STATI[ORDER.indexOf(k)] || {}).campo;
-      if (campo && !d[campo]) d[campo] = oggi();
-      addStorico(d, 'Stato: ' + LABEL[p.stato] + ' → ' + LABEL[k]);
-      d.stato = k;
-      savePaio(d, 'Stato aggiornato: ' + LABEL[k]);
-    }
-    var nx = $('#act-next');
-    if (nx) nx.onclick = function () { var ns = STATI[ORDER.indexOf(p.stato) + 1]; if (ns) setStato(ns.key); };
+    // i form segnano "sto modificando" appena si tocca un campo
+    $$('.lg-stepform, #note-f').forEach(function (f) { f.addEventListener('input', function () { if (!S.editing) setEditing(true); }); });
+
+    $$('.lg-stepform[data-passo]').forEach(function (form) {
+      var key = form.dataset.passo, avanza = form.dataset.modo === 'avanza';
+      var err = $('.lg-form-err', form);
+      function salva(cambiaStato) {
+        var d = readForm(form, p);
+        if (cambiaStato) {
+          var manca = PASSI[key].campi.filter(function (c) { return (c[3] || {}).req && !d[c[0]]; }).map(function (c) { return c[1]; });
+          if (manca.length) { err.textContent = 'Per segnare come ' + LABEL[key].toLowerCase() + ' serve: ' + manca.join(', ') + '.'; err.hidden = false; return; }
+          addStorico(d, 'Stato: ' + LABEL[p.stato] + ' → ' + LABEL[key]);
+          d.stato = key;
+          var campoData = (STATI[ORDER.indexOf(key)] || {}).campo;
+          if (campoData && !d[campoData]) d[campoData] = oggi();
+        }
+        logModifiche(p, d);
+        $$('button', form).forEach(function (b) { b.disabled = true; });
+        S.editing = false;
+        savePaio(d, cambiaStato ? 'Segnata come ' + LABEL[key].toLowerCase() : 'Salvato').catch(function () { $$('button', form).forEach(function (b) { b.disabled = false; }); });
+      }
+      form.addEventListener('submit', function (e) { e.preventDefault(); salva(avanza); });
+      var solo = $('[data-act=solo-salva]', form); if (solo) solo.onclick = function () { salva(false); };
+      var ann = $('[data-act=annulla]', form);
+      if (ann) ann.onclick = function () {
+        var box = form.closest('.lg-done-i'); $('.lg-done-f', box).hidden = true; $('.lg-done-v', box).hidden = false; setEditing(false);
+      };
+    });
+
+    $$('[data-edit]').forEach(function (b) {
+      b.onclick = function () {
+        var box = b.closest('.lg-done-i'); $('.lg-done-v', box).hidden = true; $('.lg-done-f', box).hidden = false;
+        var f = $('input,select', box); if (f) f.focus();
+      };
+    });
+
     $$('.lg-step').forEach(function (b) {
       b.onclick = function () {
         var k = b.dataset.stato; if (k === p.stato) return;
-        if (confirm('Impostare lo stato di ' + p.id + ' su "' + LABEL[k] + '"?')) setStato(k);
+        if (!confirm('Impostare lo stato di ' + p.id + ' su "' + LABEL[k] + '"?\nI dati già inseriti restano salvati.')) return;
+        var d = clone(p);
+        addStorico(d, 'Stato: ' + LABEL[p.stato] + ' → ' + LABEL[k]);
+        d.stato = k;
+        var campoData = (STATI[ORDER.indexOf(k)] || {}).campo;
+        if (campoData && !d[campoData]) d[campoData] = oggi();
+        savePaio(d, 'Stato: ' + LABEL[k]);
       };
     });
-    var paid = $('#act-paid');
-    if (paid) paid.onclick = function () {
-      var d = clone(p); d.pagamento_ricevuto = true; if (!d.data_pagamento) d.data_pagamento = oggi();
-      addStorico(d, 'Pagamento ricevuto'); savePaio(d, 'Pagamento registrato');
-    };
+
+    $('#note-f').addEventListener('submit', function (e) {
+      e.preventDefault(); var d = clone(p); var t = e.target.note.value.trim();
+      if (t) d.note = t; else delete d.note; S.editing = false; savePaio(d, 'Nota salvata');
+    });
+    $('#prod-f').addEventListener('submit', function (e) { e.preventDefault(); S.editing = false; savePaio(readForm(e.target, p), 'Dati prodotto salvati'); });
 
     $('#log-add').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -705,24 +774,22 @@
       savePaio(d, 'Evento aggiunto');
     });
 
-    $('#copy-ad').onclick = function () {
-      var b = this; navigator.clipboard.writeText($('#ad').value).then(function () { var o = b.textContent; b.textContent = 'Copiato ✓'; setTimeout(function () { b.textContent = o; }, 1500); });
-    };
+    var cp = $('#copy-ad');
+    if (cp) cp.onclick = function () { var b = this; navigator.clipboard.writeText($('#ad').value).then(function () { var o = b.textContent; b.textContent = 'Copiato ✓'; setTimeout(function () { b.textContent = o; }, 1500); }); };
 
-    // Allegati
+    // File
     var fileIn = $('#att-file'), drop = $('#att-drop');
     fileIn.addEventListener('change', function () { uploadFiles(p.id, fileIn.files); fileIn.value = ''; });
     ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
     ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
     drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles(p.id, e.dataTransfer.files); });
     document.onpaste = function (e) {
-      if (currentId() !== p.id || S.editing) return;
+      if (currentId() !== p.id) return;
       var items = (e.clipboardData || {}).items || [], files = [];
       for (var i = 0; i < items.length; i++) if (items[i].kind === 'file') { var f = items[i].getAsFile(); if (f) files.push(f); }
       if (files.length) { e.preventDefault(); uploadFiles(p.id, files); }
     };
 
-    // Lightbox
     var lb = $('#lb');
     lb.addEventListener('click', function (e) { if (e.target === lb || e.target.tagName === 'IMG') lb.close(); });
 
@@ -740,7 +807,7 @@
     S.be.listAllegati(id).then(function (rows) {
       if (currentId() !== id) return;
       $('#att-n').textContent = rows.length ? '· ' + rows.length : '';
-      if (!rows.length) { list.innerHTML = '<p class="lg-empty">Nessun file. Carica la chat con l\'acquirente, la ricevuta del pagamento, l\'etichetta di spedizione…</p>'; return; }
+      if (!rows.length) { list.innerHTML = '<p class="lg-empty">Nessun file ancora.</p>'; return; }
       list.innerHTML = rows.map(function (a) {
         var img = a.tipo.indexOf('image/') === 0;
         return '<div class="lg-shot" data-aid="' + esc(a.id) + '">' +
