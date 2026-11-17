@@ -543,3 +543,134 @@ label.lg-btn { display: inline-flex; align-items: center; }
 .lg-shots.sm .lg-shot-open img, .lg-shots.sm .lg-shot-open.file { height: 130px !important; }
 .lg-stepfiles .lg-drop-hint { margin-top: 6px; font-size: 12px; }
 .lg-done-i .lg-stepup { margin-top: 10px; }
+
+/* ===================== Telefono: versione compatta ===================== */
+@media (max-width: 640px) {
+  .main:has(.lg) { padding: 10px 12px 24px; }
+  .lg { font-size: 13px; }
+  .lg-topbar { margin: 0 0 10px; font-size: 12px; gap: 6px; }
+  .lg-topbar-r { gap: 10px; }
+  .lg-sync { font-size: 11px; }
+  .lg-help { width: 24px; height: 24px; font-size: 12px; }
+  .lg-bell { padding: 3px 9px; font-size: 12px; }
+
+  /* intestazione e numeri */
+  .lg-head { margin-bottom: 12px; }
+  .lg-head h1 { font-size: 22px; margin-bottom: 2px; }
+  .lg-sub { font-size: 12px; margin-bottom: 8px; }
+  .lg-kpis { gap: 8px; margin-bottom: 10px; }
+  .lg-kpi { padding: 9px 11px; border-radius: 10px; }
+  .lg-kpi-l { font-size: 11px; margin-bottom: 1px; }
+  .lg-kpi b { font-size: 17px; }
+  .lg-kpi b em { font-size: 12px; }
+  .lg-kpi small { font-size: 10.5px; margin-top: 3px; line-height: 1.3; }
+  .lg-bar { height: 4px; margin-top: 6px; }
+
+  /* filtri per stato: una riga */
+  .lg-pipe { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; margin-bottom: 10px; }
+  .lg-chip { padding: 6px 4px; border-radius: 9px; align-items: center; text-align: center; border-width: 1px; }
+  .lg-chip-n { font-size: 15px; }
+  .lg-chip-l { font-size: 9.5px; gap: 3px; letter-spacing: -.01em; }
+  .lg-chip-l .lg-dot { width: 6px; height: 6px; }
+
+  /* strumenti */
+  .lg-tools { gap: 6px; }
+  .lg-tools input { flex: 1 1 100%; padding: 8px 10px; font-size: 16px; }
+  .lg-tools select { flex: 1 1 calc(33% - 6px); min-width: 0; padding: 7px 6px; font-size: 12px; }
+  #csv { display: none; }
+  .lg-countbar { margin: 8px 0; font-size: 12px; }
+
+  /* schede: due per riga */
+  .lg-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .lg-card { border-radius: 10px; }
+  .lg-card:hover { transform: none; box-shadow: none; }
+  .lg-ph .lg-status { top: 6px; left: 6px; font-size: 10px; padding: 4px 7px; gap: 4px; }
+  .lg-ph .lg-status .lg-dot { width: 6px; height: 6px; }
+  .lg-cb { padding: 8px 9px 10px; }
+  .lg-cb-top { margin-bottom: 3px; }
+  .lg-id { font-size: 12px; }
+  .lg-tg { font-size: 11px; }
+  .lg-tg small { display: none; }
+  .lg-tg b { font-size: 14px; }
+  .lg-name { font-size: 11.5px; line-height: 1.3; margin-bottom: 8px; min-height: 2.6em; }
+  .lg-money { gap: 4px; padding-top: 7px; }
+  .lg-money span { font-size: 9.5px; }
+  .lg-money b { font-size: 13px; }
+  .lg-buyer { display: none; }
+
+  /* bilancio */
+  .lg-bil2 { margin-top: 28px; padding-top: 20px; }
+  .lg-bil2-h h2 { font-size: 20px; }
+  .lg-phase { padding: 11px; margin-top: 8px; }
+  .lg-phase-h b { font-size: 13.5px; }
+  .lg-phase-h small { font-size: 11px; }
+  .lg-phase-n { width: 24px; height: 24px; font-size: 12px; }
+  .lg-phase-v { font-size: 17px; }
+  .lg-pbar { height: 10px; }
+  .lg-phase-s { font-size: 12px; margin-top: 6px; }
+  .lg-split2 > div { min-height: 34px; font-size: 12px; padding: 0 10px; }
+  .lg-tot3 { gap: 6px; }
+  .lg-tot3 > div { padding: 9px 12px; }
+  .lg-tot3 b { font-size: 18px; }
+  .lg-sim2 { margin-top: 16px; }
+  .lg-sim2-h label { font-size: 13px; }
+
+  /* pagina della scarpa */
+  .lg-nav { font-size: 12px; margin-bottom: 10px; }
+  .lg-mhead { grid-template-columns: 92px minmax(0, 1fr); gap: 11px; margin-bottom: 12px; }
+  .lg-mhead-ph { border-radius: 8px; }
+  .lg-mhead .lg-hero-top { gap: 6px; margin-bottom: 4px; }
+  .lg-mhead .lg-id.big { font-size: 13px; }
+  .lg-mhead .lg-status { font-size: 10.5px; padding: 4px 8px; }
+  .lg-mhead h1 { font-size: 14.5px; margin-bottom: 2px; }
+  .lg-mhead-sub { font-size: 12px; margin-bottom: 5px; }
+  .lg-mhead-sub b { font-size: 13px; }
+  .lg-mnums { gap: 2px 12px; }
+  .lg-mnums dt { font-size: 10px; }
+  .lg-mnums dd { font-size: 14px; }
+  .lg-steps.four { margin-bottom: 12px; }
+  .lg-steps li i { width: 26px !important; height: 26px !important; font-size: 12px !important; border-width: 2px !important; margin-bottom: 3px !important; }
+  .lg-steps li::before { top: 12px !important; height: 3px; }
+  .lg-steps li b { font-size: 10.5px !important; }
+  .lg-steps li small { font-size: 9.5px !important; }
+  .lg-next { padding: 13px; border-radius: 10px; }
+  .lg-next-h { margin-bottom: 10px; }
+  .lg-next-h h2 { font-size: 17px; }
+  .lg-next-h p { font-size: 12.5px; }
+  .lg-back-step { font-size: 11px; padding: 3px 9px; }
+  .lg-fgrid { gap: 8px; }
+  .lg-f { font-size: 12px; gap: 3px; }
+  .lg-f input, .lg-f select, .lg-f textarea { padding: 7px 10px; font-size: 16px; }
+  .lg-form-foot { margin-top: 12px; gap: 12px; }
+  .lg-btn.big { padding: 10px 14px; font-size: 14px; }
+  .lg-stepup .lg-btn { padding: 7px 11px; font-size: 13px; }
+  .lg-done { margin-top: 14px; }
+  .lg-done-i { padding: 10px 12px; }
+  .lg-kv.sm { font-size: 12.5px; }
+  .lg-hist { margin-top: 14px; }
+  .lg-ev li { font-size: 12.5px; padding: 8px 0; }
+  .lg-logadd input { font-size: 16px; }
+}
+
+/* Telefono: 4 schede per riga, solo l'essenziale */
+@media (max-width: 640px) {
+  .lg-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .lg-card { border-radius: 8px; }
+  .lg-card .lg-ph { aspect-ratio: 1 / 1; }
+  .lg-card .lg-ph .lg-status { font-size: 0; padding: 0; gap: 0; width: 11px; height: 11px; top: 5px; left: 5px; border-radius: 50%; background: var(--c); border: 2px solid #fff; box-shadow: none; }
+  .lg-card .lg-ph .lg-status .lg-dot { display: none; }
+  .lg-card .lg-cb { padding: 5px 5px 6px; }
+  .lg-card .lg-cb-top { flex-direction: column; align-items: flex-start; margin: 0; gap: 0; }
+  .lg-card .lg-id { font-size: 10.5px; letter-spacing: -.02em; }
+  .lg-card .lg-tg { font-size: 10px; }
+  .lg-card .lg-tg b { font-size: 12px; }
+  .lg-card .lg-name, .lg-card .lg-money { display: none; }
+}
+
+@media (max-width: 640px) {
+  .lg-chip-l .lg-dot { display: none; }
+  .lg-chip-l { font-size: 9.5px; white-space: nowrap; }
+  .lg-chip { padding: 6px 2px; }
+  .lg-chip.on .lg-chip-l, .lg-chip .lg-chip-l { justify-content: center; }
+}
+@media (max-width: 380px) { .lg-chip-l { font-size: 8.5px; } }
