@@ -453,10 +453,10 @@
     { s: '.lg-steps', t: 'A che punto è', d: 'Disponibile → Venduto → Spedito → Concluso. Tocca un passo per spostarti, anche indietro.' },
     { s: '.lg-next', t: 'Prossimo passo', d: 'Il riquadro colorato ti dice cosa fare adesso: compila solo i campi che vedi.' },
     { s: '#f-vendita', t: 'Prezzo di vendita', d: 'L’unico campo obbligatorio quando vendi.' },
-    { s: '.lg-stepup', t: 'Screenshot della vendita', d: 'Carica la foto della chat o dell’accordo. Puoi anche trascinarla o incollarla.' },
+    { s: '.lg-next .lg-stepup', t: 'Screenshot della vendita', d: 'Carica la foto della chat o dell’accordo. Puoi anche trascinarla o incollarla.' },
     { s: '.lg-next button[type=submit]', t: 'Salva e avanza', d: 'Salva i dati e porta la scarpa al passo successivo. Tutti lo vedono subito.' },
     { s: '.lg-back-step', t: 'Hai sbagliato?', d: 'Torna al passo precedente. Le date dei passi annullati vengono tolte, il resto resta.' },
-    { s: '#lg-att', t: 'File', d: 'Tutti i file della scarpa: tocca per aprirli.' },
+    { s: '.lg-done-i[data-passo=venduto] .lg-stepfiles', t: 'Screenshot della vendita', d: 'Qui restano gli screenshot caricati: tocca per aprirli, o aggiungine altri.' },
     { s: '.lg-hist', t: 'Storico', d: 'Chi ha fatto cosa e quando. Nessuno può modificarlo o cancellarlo; puoi aggiungere una nota.' },
     { s: '.lg-back', t: 'Torna all’elenco', d: 'Per tornare a tutte le paia. Con ‹ e › passi alla scarpa precedente o successiva.' }
   ];
@@ -786,12 +786,17 @@
     '<datalist id="dl-pag"><option>PayPal</option><option>Bonifico</option><option>Contanti</option><option>Satispay</option><option>Revolut</option><option>Vinted</option></datalist>' +
     '<datalist id="dl-corr"><option>BRT</option><option>GLS</option><option>Poste Italiane</option><option>SDA</option><option>InPost</option><option>DHL</option><option>UPS</option></datalist>';
 
+  function blocoScreenshot() {
+    return '<div class="lg-stepfiles lg-drop" id="att-drop"><div class="lg-shots sm" id="att-list"></div>' +
+      '<p class="lg-drop-hint">Puoi anche trascinare il file qui o incollarlo con <kbd>⌘V</kbd>.</p></div>';
+  }
+
   function formPasso(key, p, modo) {
     // modo: 'avanza' (prossimo passo) | 'modifica' (passo già fatto)
     var P = PASSI[key];
     return '<form class="lg-stepform" data-passo="' + key + '" data-modo="' + modo + '" novalidate>' +
       '<div class="lg-fgrid">' + P.campi.map(function (c) { return campo(c, p, modo === 'avanza'); }).join('') + '</div>' +
-      (P.upload ? '<div class="lg-stepup"><label class="lg-btn" for="att-file">📎 ' + P.upload + '</label><span class="lg-stepup-n" data-att-count></span></div>' : '') +
+      (P.upload && modo === 'avanza' ? '<div class="lg-stepup"><label class="lg-btn" for="att-file">📎 ' + P.upload + '</label><span class="lg-stepup-n" data-att-count></span></div>' + blocoScreenshot() : '') +
       '<p class="lg-form-err" hidden></p>' +
       '<div class="lg-form-foot">' +
       (modo === 'avanza'
@@ -855,17 +860,13 @@
       h += '<section class="lg-done"><h3>Passi completati</h3>';
       fatti.forEach(function (s, i) {
         h += '<div class="lg-done-i s-' + s.key + '" data-passo="' + s.key + '"><div class="lg-done-h"><span><i class="lg-dot"></i><b>' + (i + 2) + '. ' + s.label + '</b></span><button type="button" class="lg-link" data-edit="' + s.key + '">Modifica</button></div>' +
-          '<div class="lg-done-v">' + riepilogoPasso(s.key, p, c) + '</div><div class="lg-done-f" hidden>' + formPasso(s.key, p, 'modifica') + '</div></div>';
+          '<div class="lg-done-v">' + riepilogoPasso(s.key, p, c) + '</div><div class="lg-done-f" hidden>' + formPasso(s.key, p, 'modifica') + '</div>' +
+          (s.key === 'venduto' ? '<div class="lg-stepup"><label class="lg-btn" for="att-file">📎 Aggiungi screenshot della vendita</label><span class="lg-stepup-n" data-att-count></span></div>' + blocoScreenshot() : '') + '</div>';
       });
       h += '</section>';
     }
 
-    // File
-    var fileHint = nextKey ? PASSI[nextKey].file : 'qualsiasi documento utile';
-    h += '<section class="lg-files" id="lg-att"><div class="lg-box-h"><h3>File <small id="att-n"></small></h3>' +
-      '<label class="lg-btn"><input type="file" id="att-file" accept="image/*,application/pdf" multiple hidden>+ Aggiungi file</label></div>' +
-      '<div class="lg-drop" id="att-drop"><div class="lg-shots" id="att-list"><p class="lg-empty">Caricamento…</p></div>' +
-      '<p class="lg-drop-hint">' + (nextKey ? 'In questo passo: carica ' + esc(fileHint) + '.' : 'Puoi caricare qualsiasi documento utile.') + ' Trascina qui o incolla con <kbd>⌘V</kbd>.</p></div></section>';
+    h += '<input type="file" id="att-file" accept="image/*,application/pdf" multiple hidden>';
 
     // Altro (chiuso)
     h += '<section class="lg-hist"><div class="lg-box-h"><h3>Storico <small>· non modificabile</small></h3></div>' +
@@ -1002,9 +1003,11 @@
     // File
     var fileIn = $('#att-file'), drop = $('#att-drop');
     fileIn.addEventListener('change', function () { uploadFiles(p.id, fileIn.files); fileIn.value = ''; });
-    ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
-    ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
-    drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles(p.id, e.dataTransfer.files); });
+    if (drop) {
+      ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+      ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+      drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles(p.id, e.dataTransfer.files); });
+    }
     document.onpaste = function (e) {
       if (currentId() !== p.id) return;
       var items = (e.clipboardData || {}).items || [], files = [];
@@ -1028,9 +1031,9 @@
     var list = $('#att-list'); if (!list) return;
     S.be.listAllegati(id).then(function (rows) {
       if (currentId() !== id) return;
-      $('#att-n').textContent = rows.length ? '· ' + rows.length : '';
+      var an = $('#att-n'); if (an) an.textContent = rows.length ? '· ' + rows.length : '';
       document.querySelectorAll('[data-att-count]').forEach(function (el) { el.textContent = rows.length ? (rows.length === 1 ? '1 file caricato ✓' : rows.length + ' file caricati ✓') : ''; });
-      if (!rows.length) { list.innerHTML = '<p class="lg-empty">Nessun file ancora.</p>'; return; }
+      if (!rows.length) { list.innerHTML = ''; return; }
       list.innerHTML = rows.map(function (a) {
         var img = a.tipo.indexOf('image/') === 0;
         return '<div class="lg-shot" data-aid="' + esc(a.id) + '">' +

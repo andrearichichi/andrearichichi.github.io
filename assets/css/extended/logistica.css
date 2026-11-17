@@ -535,3 +535,11 @@ label.lg-btn { display: inline-flex; align-items: center; }
 .lg-invito::before { content: ""; position: absolute; top: -6px; right: 14px; border: 6px solid transparent; border-top: 0; border-bottom-color: #1d1d1f; }
 .lg-invito span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #fff; color: #1d1d1f; font-weight: 700; font-size: 11px; }
 .lg-invito .lg-link { color: #a1a1a6; display: block; margin-top: 6px; font-size: 12px; }
+
+/* Screenshot dentro il passo Venduto */
+.lg-stepfiles { margin-top: 10px; }
+.lg-stepfiles .lg-shots:empty { display: none; }
+.lg-shots.sm { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-bottom: 4px; }
+.lg-shots.sm .lg-shot-open img, .lg-shots.sm .lg-shot-open.file { height: 130px !important; }
+.lg-stepfiles .lg-drop-hint { margin-top: 6px; font-size: 12px; }
+.lg-done-i .lg-stepup { margin-top: 10px; }
