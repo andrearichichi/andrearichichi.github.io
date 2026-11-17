@@ -459,3 +459,16 @@ label.lg-btn { display: inline-flex; align-items: center; }
 .lg-note-f .lg-btn { margin-top: 8px; }
 .lg-shots > .lg-empty { grid-column: 1 / -1; }
 .lg-phase-v { display: inline-flex; align-items: baseline; gap: 6px; }
+
+/* Bilancio su telefono */
+@media (max-width: 640px) {
+  .lg-phase { padding: 14px; }
+  .lg-phase-h { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 4px 12px; align-items: start; }
+  .lg-phase-v { grid-column: 1 / -1; font-size: 20px; margin-top: 4px; }
+  .lg-split2 { grid-template-columns: 1fr; height: auto; }
+  .lg-split2 > div { min-height: 40px; }
+  .lg-sim2 { padding: 14px 12px; }
+  .lg-sim2 .lg-phase { padding: 12px; }
+  .lg-sim2 .lg-phase-h small { display: none; }
+  .lg-tot3 b { font-size: 21px; }
+}
