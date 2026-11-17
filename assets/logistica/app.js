@@ -508,44 +508,24 @@
   // Cosa si compila per arrivare a ogni stato
   var PASSI = {
     venduto: {
-      titolo: 'Vendita',
-      quando: 'Quando hai trovato un acquirente e vi siete accordati sul prezzo.',
+      quando: 'Quando hai venduto la scarpa.',
       campi: [
         ['vendita', 'Prezzo di vendita (€)', 'number', { req: true }],
-        ['acquirente', 'Acquirente', 'text'],
-        ['contatto', 'Contatto', 'text', { ph: '@instagram, telefono…' }],
         ['canale', 'Dove l\'hai venduta', 'text', { list: 'dl-canali' }],
-        ['commissioni', 'Commissioni piattaforma (€)', 'number', { ph: '0' }],
-        ['metodo_pagamento', 'Metodo di pagamento', 'text', { list: 'dl-pag' }],
-        ['data_vendita', 'Data vendita', 'date', { def: 'oggi' }],
-        ['pagamento_ricevuto', 'Ho già ricevuto il pagamento', 'checkbox']
+        ['data_vendita', 'Data di vendita', 'date', { def: 'oggi' }]
       ],
-      file: 'lo screenshot dell\'accordo o della chat'
+      upload: 'Carica lo screenshot della vendita',
+      file: 'lo screenshot della vendita'
     },
     spedito: {
-      titolo: 'Spedizione',
-      quando: 'Quando la scarpa parte (o la consegni a mano).',
-      campi: [
-        ['modalita_consegna', 'Come la consegni', 'select', { options: ['Spedizione', 'A mano'] }],
-        ['corriere', 'Corriere', 'text', { list: 'dl-corr', sped: true }],
-        ['tracking', 'Codice tracking', 'text', { sped: true }],
-        ['tracking_url', 'Link tracking', 'url', { ph: 'https://…', sped: true }],
-        ['costo_spedizione', 'Spedizione pagata da te (€)', 'number', { ph: '0', sped: true }],
-        ['indirizzo', 'Indirizzo', 'text', { sped: true }],
-        ['data_spedizione', 'Data', 'date', { def: 'oggi' }]
-      ],
-      file: 'la ricevuta o l\'etichetta di spedizione'
+      quando: 'Quando la scarpa è partita.',
+      campi: [['data_spedizione', 'Data di spedizione', 'date', { def: 'oggi' }]],
+      file: 'eventuali documenti di spedizione'
     },
     concluso: {
-      titolo: 'Chiusura',
-      quando: 'Quando l\'acquirente l\'ha ricevuta e i soldi sono arrivati.',
-      campi: [
-        ['pagamento_ricevuto', 'Pagamento ricevuto', 'checkbox', { req: true }],
-        ['data_pagamento', 'Data pagamento', 'date', { def: 'oggi' }],
-        ['data_consegna', 'Data consegna', 'date', { def: 'oggi' }],
-        ['data_conclusione', 'Data chiusura', 'date', { def: 'oggi' }]
-      ],
-      file: 'la prova del pagamento'
+      quando: 'Quando l\'acquirente l\'ha ricevuta e la vendita è chiusa.',
+      campi: [['data_conclusione', 'Data di chiusura', 'date', { def: 'oggi' }]],
+      file: 'eventuali documenti finali'
     }
   };
 
@@ -572,6 +552,7 @@
     var P = PASSI[key];
     return '<form class="lg-stepform" data-passo="' + key + '" data-modo="' + modo + '" novalidate>' +
       '<div class="lg-fgrid">' + P.campi.map(function (c) { return campo(c, p, modo === 'avanza'); }).join('') + '</div>' +
+      (P.upload ? '<div class="lg-stepup"><label class="lg-btn" for="att-file">📎 ' + P.upload + '</label><span class="lg-stepup-n" data-att-count></span></div>' : '') +
       '<p class="lg-form-err" hidden></p>' +
       '<div class="lg-form-foot">' +
       (modo === 'avanza'
@@ -582,18 +563,9 @@
 
   function riepilogoPasso(key, p, c) {
     var r = '';
-    if (key === 'venduto') {
-      r = kv('Prezzo', p.vendita ? '<b>' + eur(p.vendita) + '</b>' : '') + kv('Acquirente', esc(p.acquirente || '')) + kv('Contatto', esc(p.contatto || '')) +
-        kv('Canale', esc(p.canale || '')) + (c.commissioni ? kv('Commissioni', '−' + eur(c.commissioni)) : '') + kv('Pagamento', esc(p.metodo_pagamento || '')) +
-        kv('Data', dataIt(p.data_vendita));
-    } else if (key === 'spedito') {
-      var tr = p.tracking ? (p.tracking_url ? '<a href="' + esc(p.tracking_url) + '" target="_blank" rel="noopener">' + esc(p.tracking) + ' ↗</a>' : esc(p.tracking)) : '';
-      r = kv('Modalità', esc(p.modalita_consegna || '')) + kv('Corriere', esc(p.corriere || '')) + kv('Tracking', tr ? '<span class="mono">' + tr + '</span>' : '') +
-        (c.spedVendita ? kv('Costo spedizione', '−' + eur(c.spedVendita)) : '') + kv('Indirizzo', esc(p.indirizzo || '')) + kv('Data', dataIt(p.data_spedizione));
-    } else if (key === 'concluso') {
-      r = kv('Pagamento', c.incassato ? '<span class="lg-ok">✓ Ricevuto</span>' : '') + kv('Pagata il', dataIt(p.data_pagamento)) +
-        kv('Consegnata il', dataIt(p.data_consegna)) + kv('Chiusa il', dataIt(p.data_conclusione));
-    }
+    if (key === 'venduto') r = kv('Prezzo', p.vendita ? '<b>' + eur(p.vendita) + '</b>' : '') + kv('Dove', esc(p.canale || '')) + kv('Data', dataIt(p.data_vendita));
+    else if (key === 'spedito') r = kv('Data', dataIt(p.data_spedizione));
+    else if (key === 'concluso') r = kv('Data', dataIt(p.data_conclusione));
     return r ? '<dl class="lg-kv sm">' + r + '</dl>' : '<p class="lg-empty">Nessun dato inserito.</p>';
   }
 
@@ -807,6 +779,7 @@
     S.be.listAllegati(id).then(function (rows) {
       if (currentId() !== id) return;
       $('#att-n').textContent = rows.length ? '· ' + rows.length : '';
+      document.querySelectorAll('[data-att-count]').forEach(function (el) { el.textContent = rows.length ? (rows.length === 1 ? '1 file caricato ✓' : rows.length + ' file caricati ✓') : ''; });
       if (!rows.length) { list.innerHTML = '<p class="lg-empty">Nessun file ancora.</p>'; return; }
       list.innerHTML = rows.map(function (a) {
         var img = a.tipo.indexOf('image/') === 0;
