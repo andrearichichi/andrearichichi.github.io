@@ -335,16 +335,18 @@
      Vista OSPITE: solo scarpe, prezzo d'acquisto e stima di vendita
      ===================================================================== */
   function renderOspite(v) {
-    var paia = (v.paia || []).slice().sort(sortById), acq = v.acquisto || {}, stima = num(v.stima) || 380;
+    var MOLT = 4; // stima di vendita = 4 volte il prezzo pagato di ogni paio
+    var paia = (v.paia || []).slice().sort(sortById), acq = v.acquisto || {};
+    var stimaDi = function (p) { return MOLT * num(p.pagato); };
     var n = paia.length, speso = num(acq.totale), quota = n ? num(acq.spedizione) / n : 0;
-    var ricavo = n * stima, guadagno = ricavo - speso;
+    var ricavo = paia.reduce(function (t, p) { return t + stimaDi(p); }, 0), guadagno = ricavo - speso;
     var taglie = {}; paia.forEach(function (p) { taglie[p.taglia] = 1; });
     var h = '<div class="lg-topbar"><span class="lg-sync">Accesso ospite · sola lettura</span><span class="lg-topbar-r"><button type="button" class="lg-link" id="lg-logout">Esci</button></span></div>' +
-      '<header class="lg-head"><h1>Golden Goose</h1><p class="lg-sub">' + n + ' paia acquistate il ' + esc(dataIt(acq.data)) + '. Prezzo d’acquisto di ogni paio e stima di vendita a ' + eur(stima) + ' a paio.</p></header>' +
+      '<header class="lg-head"><h1>Golden Goose</h1><p class="lg-sub">' + n + ' paia acquistate il ' + esc(dataIt(acq.data)) + '. Prezzo d’acquisto di ogni paio e stima di vendita: ' + MOLT + ' volte il prezzo pagato.</p></header>' +
       '<section class="lg-kpis">' +
       kpi('Paia', n + ' <em>paia</em>', 'Divise in 3 ordini') +
       kpi('Speso', eur(speso), 'Spedizione inclusa') +
-      kpi('Stima di vendita', eur(ricavo), n + ' × ' + eur(stima)) +
+      kpi('Stima di vendita', eur(ricavo), MOLT + ' × il prezzo pagato di ogni paio') +
       '<div class="lg-kpi"><span class="lg-kpi-l">Guadagno stimato</span><b class="' + (guadagno >= 0 ? 'pos' : 'neg') + '">' + eur(guadagno) + '</b><small>Stima di vendita − speso</small></div>' +
       '</section>' +
       '<section class="lg-tools"><input id="q" type="search" placeholder="Cerca per ID o modello…" aria-label="Cerca">' +
@@ -354,16 +356,17 @@
     [1, 2, 3].forEach(function (o) {
       var gruppo = paia.filter(function (p) { return ordineDi(p.id) === o; });
       var spesoO = gruppo.reduce(function (t, p) { return t + num(p.pagato) + quota; }, 0);
-      h += '<div class="lg-ord-h" data-ord-h="' + o + '"><b>Ordine ' + o + '</b><span>' + gruppo.length + ' paia · pagate ' + eur(spesoO) + ' · stima ' + eur(gruppo.length * stima) + '</span></div>';
+      var stimaO = gruppo.reduce(function (t, p) { return t + stimaDi(p); }, 0);
+      h += '<div class="lg-ord-h" data-ord-h="' + o + '"><b>Ordine ' + o + '</b><span>' + gruppo.length + ' paia · pagate ' + eur(spesoO) + ' · stima ' + eur(stimaO) + '</span></div>';
       gruppo.forEach(function (p) {
         h += '<div class="lg-card s-ospite" data-ord="' + o + '" data-sesso="' + esc(p.sesso) + '" data-taglia="' + esc(p.taglia) + '" data-search="' + esc((p.id + ' ' + p.nome).toLowerCase()) + '">' +
           '<div class="lg-ph"><img src="' + foto(p) + '" alt="' + esc(p.nome) + '" loading="lazy" width="1200" height="900"></div>' +
           '<div class="lg-cb"><div class="lg-cb-top"><span class="lg-id">' + esc(p.id) + '</span><span class="lg-tg"><small>' + esc(p.sesso) + '</small> Tg <b>' + esc(p.taglia) + '</b></span></div>' +
-          '<h3 class="lg-name">' + esc(p.nome) + '</h3><div class="lg-money"><div><span>Pagato</span><b>' + eur(num(p.pagato) + quota) + '</b></div><div><span>Stima</span><b class="pos">' + eur(stima) + '</b></div></div></div></div>';
+          '<h3 class="lg-name">' + esc(p.nome) + '</h3><div class="lg-money"><div><span>Pagato</span><b>' + eur(num(p.pagato) + quota) + '</b></div><div><span>Stima</span><b class="pos">' + eur(stimaDi(p)) + '</b></div></div></div></div>';
       });
     });
     h += '</section><p id="empty" class="lg-emptyres" hidden>Nessun paio corrisponde ai filtri.</p>' +
-      '<p class="lg-ospite-note">“Pagato” include la quota di spedizione (' + eur(quota) + ' a paio). La stima di vendita è indicativa.</p>';
+      '<p class="lg-ospite-note">“Pagato” include la quota di spedizione (' + eur(quota) + ' a paio). Stima = ' + MOLT + ' × il prezzo pagato della scarpa (spedizione esclusa); è indicativa.</p>';
     root.innerHTML = h;
     $('#lg-logout').onclick = logout;
     var q = $('#q'), fs = $('#f-sesso'), ft = $('#f-taglia');
